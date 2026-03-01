@@ -64,7 +64,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [timeRange, setTimeRangeState] = useState<TimeRange | null>(null)
   const [filters, setFilters] = useState<OpenSearchFilter[]>([])
   const [luceneQuery, setLuceneQueryState] = useState('')
-  const [pinnedFields, setPinnedFields] = useState<string[]>([])
+  const DEFAULT_PINNED = ['level', 'appName', 'text']
+  const [pinnedFields, setPinnedFields] = useState<string[]>(DEFAULT_PINNED)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setErrorState] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -150,7 +151,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUserState(null)
     setFilters([])
     setLuceneQueryState('')
-    setPinnedFields([])
+    setPinnedFields(['level', 'appName', 'text'])
     setTimeRangeState(null)
     setErrorState(null)
     setLogs([])

@@ -4,6 +4,8 @@ import type { LogEntry } from '@/types/api'
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const HIDDEN_FIELDS = new Set(['_id', '@timestamp', 'levelInt'])
+// Special fields that have fixed rendering order and style when pinned
+const SPECIAL_FIELDS = new Set(['level', 'appName', 'text'])
 
 function getLevelColor(level: string): string {
   const colors: Record<string, string> = {
@@ -203,6 +205,11 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
   const appCls    = dark ? 'text-slate-300'   : 'text-gray-700'
   const textCls   = dark ? 'text-slate-500'   : 'text-gray-500'
 
+  const hasLevel   = pinnedFields.includes('level')
+  const hasAppName = pinnedFields.includes('appName')
+  const hasText    = pinnedFields.includes('text')
+  const customPinned = pinnedFields.filter(f => !SPECIAL_FIELDS.has(f))
+
   return (
     <div className={`border-b ${borderCls}`}>
       {/* Main collapsed row */}
@@ -216,35 +223,39 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
           open={expanded}
         />
 
-        {/* Level color bar */}
+        {/* Level color bar — always visible as UX indicator */}
         <div
           className="w-0.5 self-stretch rounded-full flex-shrink-0"
           style={{ backgroundColor: levelColor }}
         />
 
-        {/* Time */}
+        {/* Time — always fixed */}
         <span className={`text-xs font-mono w-48 flex-shrink-0 ${timeCls}`}>
           {formatTime(log.localTime)}
         </span>
 
-        {/* Level badge */}
-        <span
-          className="text-xs font-bold w-16 flex-shrink-0 text-center px-1.5 py-0.5 rounded"
-          style={{ color: levelColor, backgroundColor: levelBg }}
-        >
-          {log.level}
-        </span>
+        {/* Level badge — shown only if pinned */}
+        {hasLevel && (
+          <span
+            className="text-xs font-bold w-16 flex-shrink-0 text-center px-1.5 py-0.5 rounded"
+            style={{ color: levelColor, backgroundColor: levelBg }}
+          >
+            {log.level}
+          </span>
+        )}
 
-        {/* AppName */}
-        <span
-          className={`text-xs w-36 flex-shrink-0 truncate ${appCls}`}
-          title={log.appName}
-        >
-          {log.appName ?? '—'}
-        </span>
+        {/* AppName — shown only if pinned */}
+        {hasAppName && (
+          <span
+            className={`text-xs w-36 flex-shrink-0 truncate ${appCls}`}
+            title={log.appName}
+          >
+            {log.appName ?? '—'}
+          </span>
+        )}
 
-        {/* Pinned fields */}
-        {pinnedFields.map(field => (
+        {/* Custom pinned fields (non-special) */}
+        {customPinned.map(field => (
           <span
             key={field}
             className={`text-xs w-28 flex-shrink-0 truncate ${appCls}`}
@@ -254,13 +265,15 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
           </span>
         ))}
 
-        {/* Message — fills remaining space */}
-        <span
-          className={`text-xs flex-1 min-w-0 truncate ${textCls}`}
-          title={log.text}
-        >
-          {log.text ?? ''}
-        </span>
+        {/* Message — shown only if pinned, fills remaining space */}
+        {hasText && (
+          <span
+            className={`text-xs flex-1 min-w-0 truncate ${textCls}`}
+            title={log.text}
+          >
+            {log.text ?? ''}
+          </span>
+        )}
       </div>
 
       {/* Expanded content */}
@@ -317,6 +330,11 @@ export default function LogTable({
     )
   }
 
+  const hasLevel   = pinnedFields.includes('level')
+  const hasAppName = pinnedFields.includes('appName')
+  const hasText    = pinnedFields.includes('text')
+  const customPinned = pinnedFields.filter(f => !SPECIAL_FIELDS.has(f))
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       {/* Sticky header */}
@@ -326,13 +344,17 @@ export default function LogTable({
         <span className={`text-xs font-semibold uppercase tracking-wide w-48 flex-shrink-0 ${headerText}`}>
           Время
         </span>
-        <span className={`text-xs font-semibold uppercase tracking-wide w-16 flex-shrink-0 text-center ${headerText}`}>
-          Уровень
-        </span>
-        <span className={`text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 ${headerText}`}>
-          Приложение
-        </span>
-        {pinnedFields.map(field => (
+        {hasLevel && (
+          <span className={`text-xs font-semibold uppercase tracking-wide w-16 flex-shrink-0 text-center ${headerText}`}>
+            Уровень
+          </span>
+        )}
+        {hasAppName && (
+          <span className={`text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 ${headerText}`}>
+            Приложение
+          </span>
+        )}
+        {customPinned.map(field => (
           <span
             key={field}
             className={`text-xs font-semibold uppercase tracking-wide w-28 flex-shrink-0 truncate ${headerText}`}
@@ -341,9 +363,11 @@ export default function LogTable({
             {field}
           </span>
         ))}
-        <span className={`text-xs font-semibold uppercase tracking-wide flex-1 ${headerText}`}>
-          Сообщение
-        </span>
+        {hasText && (
+          <span className={`text-xs font-semibold uppercase tracking-wide flex-1 ${headerText}`}>
+            Сообщение
+          </span>
+        )}
       </div>
 
       {/* Scrollable rows */}
