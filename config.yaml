@@ -1,0 +1,45 @@
+server:
+  port: 5000                    # Порт для запуска frontend-приложения
+  protocol: http                # http/https - протокол, по которому приложение слушает запросы
+  backend:
+    protocol: http             # http/https - протокол для запросов к backend
+    host: localhost            # Хост backend
+    port: 8080                 # Порт backend
+
+auth:
+  jwt:
+    algorithm: ES256             # Алгоритм подписи
+    secret: "your-secret-key"    # Секретный ключ (для HMAC)
+    expiration: 7200             # Время жизни токена в секундах
+    fields:                      # Поля, включаемые в JWT
+      - name: "sub"
+        value: ${userId}
+      - name: "name"
+        value: ${userId}
+      - name: "channel"
+        value: ${channel}
+      - name: "scope"
+        value: "ECM_USER"
+      - name: "iss"
+        value: "ISS"
+
+users:                           # Список пользователей для демо
+  - userId: "aaklimov"
+    role: "viewer"
+    channel: "test_channel_1"
+  - userId: "powerUser"          # имеет доступ к нескольким projectCodes
+    role: "admin"
+    channel: "test_channel_1"
+  - userId: "IBuser"             # Аудитор ИБ, имеет доступ ко всем логам
+    role: "Information Security Auditor"
+    channel: "test_channel_1"
+    jwt: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDAwMDEiLCJuYW1lIjoiVFNMR19URVNUX0FETUlOIiwiY2hhbm5lbCI6InRlc3RfY2hhbm5lbF8xIiwic2NvcGUiOiJFQ01fVVNFUiIsImlhdCI6MTUxNjIzOTAyMiwiaXNzIjoiSVNTIn0.UuFStZAmht0EghsPN2JzIRKWGpQ2KbM9_NGK71G2GVl92jl2wWVKq6X_EkxoWFlKceTWG-ABeOLuXX38AJfyVw
+
+logging:
+  maxLogsPerPage: 100            # Максимальное количество логов на странице
+  histogramBuckets: 70           # Количество бакетов по умолчанию
+
+ui:
+  theme: "light"                 # light/dark
+  timeFormat: "YYYY-MM-DD HH:mm:ss"
+  refreshInterval: 0             # Интервал автообновления в секундах (0 - отключено)

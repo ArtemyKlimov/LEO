@@ -1,0 +1,6 @@
+memory/
+response_examples/
+CLAUDE.md
+todos.txt
+.claude/
+.playwright-mcp/

@@ -1,0 +1,1828 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "OpenAPI definition",
+        "version": "v0"
+    },
+    "servers": [
+        {
+            "url": "/"
+        }
+    ],
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "Constraint",
+            "description": "the Constraint API"
+        },
+        {
+            "name": "SavedSearches",
+            "description": "Профили поиска"
+        },
+        {
+            "name": "OpenSearch",
+            "description": "Журналы в OpenSearch"
+        }
+    ],
+    "paths": {
+        "/api/v1/{storageType}/saved-searches/{id}": {
+            "get": {
+                "tags": [
+                    "SavedSearches"
+                ],
+                "summary": "Возвращает профиль поиска по идентификатору",
+                "operationId": "getSavedSearch",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Идентификатор профиля поиска",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "storageType",
+                        "in": "path",
+                        "description": "Тип хранилища (hot - Opensearch; cold - в Hadoop; syslogs - в Hadoop, в таблице syslogs)",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "hot",
+                                "cold",
+                                "syslogs"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Ошибка валидации",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Найденный профиль поиска",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SavedSearchItemGetResult"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SavedSearchItemGetResult"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "SavedSearches"
+                ],
+                "summary": "Редактирование существующего профиля поиска",
+                "operationId": "editSavedSearch",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Идентификатор профиля поиска",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "storageType",
+                        "in": "path",
+                        "description": "Тип хранилища (hot - Opensearch; cold - в Hadoop; syslogs - в Hadoop, в таблице syslogs)",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "hot",
+                                "cold",
+                                "syslogs"
+                            ]
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EditSavedSearchRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "400": {
+                        "description": "Ошибка валидации",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Профиль поиска был изменен ранее, нужно запросить новую версию",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Результат редактирования, новая версия",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SavedSearchEditResult"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SavedSearchEditResult"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/elasticsearch/query": {
+            "get": {
+                "tags": [
+                    "OpenSearch"
+                ],
+                "summary": "Просмотр журналов в JSON формате из elasticsearch",
+                "operationId": "fetchLogsByGet",
+                "parameters": [
+                    {
+                        "name": "logQueryPageableRequest",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/LogQueryPageableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OpenSearchResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OpenSearchResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "OpenSearch"
+                ],
+                "summary": "Просмотр журналов в JSON формате из elasticsearch",
+                "operationId": "fetchLogsByPost",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LogQueryPageableRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OpenSearchResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OpenSearchResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/user/data": {
+            "get": {
+                "tags": [
+                    "Вспомогательные данные для UI"
+                ],
+                "summary": "Запрос ролей и разрешений пользователя",
+                "operationId": "getUserData",
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/ui/fields": {
+            "get": {
+                "tags": [
+                    "Вспомогательные данные для UI"
+                ],
+                "description": "Запрос списка полей для фильтра",
+                "operationId": "getFilterFields",
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FormData"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/constraints": {
+            "get": {
+                "tags": [
+                    "Constraint"
+                ],
+                "summary": "Интервалы хранения данных в хранилищах",
+                "operationId": "getConstraints",
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Результат проверки",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConstraintResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConstraintResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "SavedSearchEditResult": {
+                "required": [
+                    "primaryTerm",
+                    "seqNo",
+                    "version"
+                ],
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "integer",
+                        "description": "Версия записи",
+                        "format": "int64"
+                    },
+                    "seqNo": {
+                        "type": "integer",
+                        "description": "Opensearch может использовать порядковый номер операций, чтобы убедиться, что более новая версия документа никогда не будет отменена изменением, которому присвоен меньший порядковый номер.",
+                        "format": "int64"
+                    },
+                    "primaryTerm": {
+                        "type": "integer",
+                        "description": "Первичный термин для группы репликации - это просто счетчик того, сколько раз менялся первичный шард.",
+                        "format": "int64"
+                    }
+                },
+                "description": "Результат редактирования профиля поиска"
+            },
+            "EditSavedSearchRequest": {
+                "required": [
+                    "name",
+                    "primaryTerm",
+                    "seqNo"
+                ],
+                "type": "object",
+                "properties": {
+                    "seqNo": {
+                        "type": "integer",
+                        "description": "Opensearch может использовать порядковый номер операций, чтобы убедиться, что более новая версия документа никогда не будет отменена изменением, которому присвоен меньший порядковый номер.",
+                        "format": "int64"
+                    },
+                    "primaryTerm": {
+                        "type": "integer",
+                        "description": "Первичный термин для группы репликации - это просто счетчик того, сколько раз менялся первичный шард.",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "maxLength": 500,
+                        "minLength": 3,
+                        "type": "string",
+                        "description": "Имя профиля поиска (должно быть уникально в пределах списка projectCode)"
+                    },
+                    "queryAttributes": {
+                        "$ref": "#/components/schemas/SavedSearchAttributesRequest"
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов",
+                        "items": {
+                            "$ref": "#/components/schemas/SavedSearchFilter"
+                        }
+                    }
+                },
+                "description": "Описание существующего профиля поиска"
+            },
+            "SavedSearchAttributesRequest": {
+                "type": "object",
+                "properties": {
+                    "startTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "endTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    }
+                },
+                "description": "This model represents available fields to query in Hive or Open Search"
+            },
+            "SavedSearchFilter": {
+                "required": [
+                    "attributeName",
+                    "attributeValue"
+                ],
+                "type": "object",
+                "properties": {
+                    "filterOperator": {
+                        "type": "string",
+                        "description": "Оператор фильтра (список значений)",
+                        "default": "FilterOperatorEnum.IS",
+                        "enum": [
+                            "IS",
+                            "IS NOT",
+                            "IS ONE OF",
+                            "IS NOT ONE OF",
+                            "EXIST",
+                            "DOES NOT EXIST"
+                        ]
+                    },
+                    "attributeName": {
+                        "type": "string",
+                        "description": "Наименование атрибута"
+                    },
+                    "attributeValue": {
+                        "uniqueItems": true,
+                        "type": "array",
+                        "description": "Значение атрибута (массив строк)",
+                        "items": {
+                            "type": "string",
+                            "description": "Значение атрибута (массив строк)"
+                        }
+                    },
+                    "attributeVisibility": {
+                        "type": "boolean",
+                        "description": "Видимость атрибута"
+                    }
+                },
+                "description": "Атрибуты профиля поиска"
+            },
+            "SavedSearchCreateResult": {
+                "required": [
+                    "id",
+                    "primaryTerm",
+                    "seqNo",
+                    "version"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Уникальный идентификатор"
+                    },
+                    "version": {
+                        "type": "integer",
+                        "description": "Версия записи",
+                        "format": "int64"
+                    },
+                    "seqNo": {
+                        "type": "integer",
+                        "description": "Opensearch может использовать порядковый номер операций, чтобы убедиться, что более новая версия документа никогда не будет отменена изменением, которому присвоен меньший порядковый номер.",
+                        "format": "int64"
+                    },
+                    "primaryTerm": {
+                        "type": "integer",
+                        "description": "Первичный термин для группы репликации - это просто счетчик того, сколько раз менялся первичный шард.",
+                        "format": "int64"
+                    }
+                },
+                "description": "Результат создания нового профиля поиска"
+            },
+            "NewSavedSearchRequest": {
+                "required": [
+                    "filters",
+                    "name"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "maxLength": 500,
+                        "minLength": 3,
+                        "type": "string",
+                        "description": "Имя профиля поиска (должно быть уникально в пределах списка projectCode)"
+                    },
+                    "queryAttributes": {
+                        "$ref": "#/components/schemas/SavedSearchAttributesRequest"
+                    },
+                    "onlyMy": {
+                        "type": "boolean",
+                        "description": "true - личный фильтр для текущего пользователем, false - проектный/публичный фильтр",
+                        "default": false
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов",
+                        "items": {
+                            "$ref": "#/components/schemas/SavedSearchFilter"
+                        }
+                    }
+                },
+                "description": "Описание нового профиля поиска"
+            },
+            "SnapshotAuthor": {
+                "type": "object",
+                "properties": {
+                    "sub": {
+                        "type": "string",
+                        "example": "VTB000@corp.dev.vtb"
+                    },
+                    "infoSystemCodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "SnapshotDataDto": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "startedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "finishedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "params": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "INITIALIZED",
+                            "DONE",
+                            "ERROR",
+                            "EMPTY",
+                            "CANCELLING",
+                            "CANCELED",
+                            "WORKING",
+                            "WAITING"
+                        ]
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов",
+                        "items": {
+                            "$ref": "#/components/schemas/SnapshotFilter"
+                        }
+                    },
+                    "duration": {
+                        "type": "string",
+                        "example": "01:00:00"
+                    },
+                    "author": {
+                        "$ref": "#/components/schemas/SnapshotAuthor"
+                    }
+                }
+            },
+            "SnapshotFilter": {
+                "required": [
+                    "attributeName"
+                ],
+                "type": "object",
+                "properties": {
+                    "filterOperator": {
+                        "type": "string",
+                        "description": "Оператор фильтра (список значений)",
+                        "enum": [
+                            "IS",
+                            "IS NOT",
+                            "IS ONE OF",
+                            "IS NOT ONE OF",
+                            "EXIST",
+                            "DOES NOT EXIST"
+                        ]
+                    },
+                    "attributeName": {
+                        "maxLength": 2147483647,
+                        "minLength": 1,
+                        "pattern": "^(?!null$).+",
+                        "type": "string",
+                        "description": "Наименование атрибута"
+                    },
+                    "attributeValue": {
+                        "uniqueItems": true,
+                        "type": "array",
+                        "description": "Значение атрибута (массив строк)",
+                        "items": {
+                            "type": "string",
+                            "description": "Значение атрибута (массив строк)"
+                        }
+                    }
+                },
+                "description": "Атрибуты фонового поиска"
+            },
+            "SnapshotListDataDto": {
+                "required": [
+                    "data",
+                    "totalSize"
+                ],
+                "type": "object",
+                "properties": {
+                    "totalSize": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SnapshotDataDto"
+                        }
+                    }
+                }
+            },
+            "SnapshotListRequestParams": {
+                "required": [
+                    "createdTimeOrder",
+                    "pagination",
+                    "timeRange"
+                ],
+                "type": "object",
+                "properties": {
+                    "filters": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "pagination": {
+                        "$ref": "#/components/schemas/SnapshotPagination"
+                    },
+                    "createdTimeOrder": {
+                        "pattern": "^(?i)asc|desc$",
+                        "type": "string",
+                        "description": "Порядок сортировки по времени создания (asc/desc)"
+                    },
+                    "timeRange": {
+                        "$ref": "#/components/schemas/SnapshotTimeRange"
+                    }
+                }
+            },
+            "SnapshotPagination": {
+                "required": [
+                    "page",
+                    "pageSize"
+                ],
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "maximum": 100000,
+                        "minimum": 0,
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pageSize": {
+                        "maximum": 5000,
+                        "minimum": 0,
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "SnapshotTimeRange": {
+                "required": [
+                    "endTime",
+                    "startTime"
+                ],
+                "type": "object",
+                "properties": {
+                    "startTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "endTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    }
+                }
+            },
+            "LogQueryRequest": {
+                "required": [
+                    "endTime",
+                    "startTime"
+                ],
+                "type": "object",
+                "properties": {
+                    "startTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "endTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    }
+                },
+                "description": "This model represents available fields to query in Hive or Open Search"
+            },
+            "SnapshotMetadata": {
+                "required": [
+                    "queryAttributes"
+                ],
+                "type": "object",
+                "properties": {
+                    "queryAttributes": {
+                        "$ref": "#/components/schemas/LogQueryRequest"
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов",
+                        "items": {
+                            "$ref": "#/components/schemas/SnapshotFilter"
+                        }
+                    }
+                },
+                "description": "Атрибуты фонового поиска и все возможные фильтры"
+            },
+            "Bucket": {
+                "required": [
+                    "docCount",
+                    "key",
+                    "keyAsString"
+                ],
+                "type": "object",
+                "properties": {
+                    "docCount": {
+                        "type": "integer",
+                        "description": "Количество сообщений лога в бакете",
+                        "format": "int64"
+                    },
+                    "key": {
+                        "type": "integer",
+                        "description": "Время бакета, timestamp",
+                        "format": "int64"
+                    },
+                    "keyAsString": {
+                        "type": "string",
+                        "description": "Время бакета, представление в виде строки"
+                    }
+                },
+                "description": "Бакет с количеством сообщений лога за время"
+            },
+            "Cursor": {
+                "required": [
+                    "id",
+                    "score"
+                ],
+                "type": "object",
+                "properties": {
+                    "sortingFieldValue": {
+                        "type": "object",
+                        "description": "sorting field value of last record"
+                    },
+                    "score": {
+                        "type": "object",
+                        "description": "score of last record"
+                    },
+                    "id": {
+                        "type": "object",
+                        "description": "id of last record"
+                    }
+                },
+                "description": "Карта указателей для каждого сегмента на последнюю запись для постраничной пагинации"
+            },
+            "OpenSearchResponse": {
+                "type": "object",
+                "properties": {
+                    "payload": {
+                        "type": "array",
+                        "description": "Список сообщений",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "description": "Список сообщений"
+                            },
+                            "description": "Список сообщений"
+                        }
+                    },
+                    "cursor": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/Cursor"
+                        },
+                        "description": "Информация о курсоре"
+                    },
+                    "summary": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string",
+                            "description": "Общая информация об ответе"
+                        },
+                        "description": "Общая информация об ответе"
+                    },
+                    "dateHistogram": {
+                        "$ref": "#/components/schemas/OpenSearchResponse_dateHistogram"
+                    }
+                },
+                "description": "Ответ из оперативного хранилища"
+            },
+            "OpenSearchResponse_dateHistogram": {
+                "type": "object",
+                "properties": {
+                    "interval": {
+                        "type": "string",
+                        "description": "Интервал бакета",
+                        "example": "PT5M"
+                    },
+                    "buckets": {
+                        "type": "array",
+                        "description": "Список бакетов для представления объема логов в гистограмме",
+                        "items": {
+                            "$ref": "#/components/schemas/Bucket"
+                        }
+                    }
+                },
+                "description": "Данные для гистограммы"
+            },
+            "LogQueryPageableRequest": {
+                "required": [
+                    "pageAttributes",
+                    "queryAttributes"
+                ],
+                "type": "object",
+                "properties": {
+                    "queryAttributes": {
+                        "$ref": "#/components/schemas/LogQueryRequest"
+                    },
+                    "pageAttributes": {
+                        "$ref": "#/components/schemas/OpenSearchAttributes"
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов",
+                        "items": {
+                            "$ref": "#/components/schemas/OpenSearchFilters"
+                        }
+                    }
+                },
+                "description": "Атрибуты к запросу в оперативное хранилище и все возможные фильтры"
+            },
+            "OpenSearchAttributes": {
+                "required": [
+                    "limit"
+                ],
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Кол-во сообщений для отображения",
+                        "format": "int32"
+                    },
+                    "cursors": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/Cursor"
+                        },
+                        "description": "Карта указателей для каждого сегмента на последнюю запись для постраничной пагинации"
+                    },
+                    "order": {
+                        "$ref": "#/components/schemas/OpenSearchAttributes_order"
+                    },
+                    "dateHistogramInterval": {
+                        "type": "string",
+                        "description": "Интервал для гистограммы объема сообщений по дате",
+                        "enum": [
+                            "auto",
+                            "millisecond",
+                            "second",
+                            "minute",
+                            "hour",
+                            "day",
+                            "week",
+                            "month"
+                        ]
+                    }
+                },
+                "description": "Атрибуты к запросу в оперативное хранилище"
+            },
+            "OpenSearchAttributes_order": {
+                "required": [
+                    "fieldCode",
+                    "sorting"
+                ],
+                "type": "object",
+                "properties": {
+                    "fieldCode": {
+                        "type": "string",
+                        "description": "Наименование поля по которому выполняется сортировка"
+                    },
+                    "sorting": {
+                        "pattern": "^asc|desc$",
+                        "type": "string",
+                        "description": "Порядок сортировки (asc/desc)"
+                    }
+                },
+                "description": "Сортировка результатов выдачи"
+            },
+            "OpenSearchFilters": {
+                "required": [
+                    "attributeName"
+                ],
+                "type": "object",
+                "properties": {
+                    "filterOperator": {
+                        "type": "string",
+                        "description": "Оператор фильтра (список значений)",
+                        "enum": [
+                            "IS",
+                            "IS NOT",
+                            "IS ONE OF",
+                            "IS NOT ONE OF",
+                            "EXIST",
+                            "DOES NOT EXIST"
+                        ]
+                    },
+                    "attributeName": {
+                        "maxLength": 2147483647,
+                        "minLength": 1,
+                        "pattern": "^(?!null$).+",
+                        "type": "string",
+                        "description": "Наименование атрибута"
+                    },
+                    "attributeValue": {
+                        "uniqueItems": true,
+                        "type": "array",
+                        "description": "Значение атрибута (массив строк)",
+                        "items": {
+                            "type": "string",
+                            "description": "Значение атрибута (массив строк)"
+                        }
+                    }
+                },
+                "description": "Атрибуты к запросу в оперативное хранилище"
+            },
+            "SavedSearchCursor": {
+                "required": [
+                    "id",
+                    "score"
+                ],
+                "type": "object",
+                "properties": {
+                    "score": {
+                        "type": "string",
+                        "description": "score of last record"
+                    },
+                    "id": {
+                        "type": "string",
+                        "description": "id of last record"
+                    }
+                },
+                "description": "Указатель на последнюю запись для постраничной пагинации"
+            },
+            "SavedSearchGetResult": {
+                "type": "object",
+                "properties": {
+                    "savedSearchItems": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SavedSearchItemGetResult"
+                        }
+                    },
+                    "cursor": {
+                        "$ref": "#/components/schemas/SavedSearchCursor"
+                    }
+                },
+                "description": "Описание профилей поиска и карта курсоров для навигации по сегментам"
+            },
+            "SavedSearchItemGetResult": {
+                "required": [
+                    "id",
+                    "name",
+                    "primaryTerm",
+                    "seqNo",
+                    "version"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Уникальный идентификатор"
+                    },
+                    "version": {
+                        "type": "integer",
+                        "description": "Версия записи",
+                        "format": "int64"
+                    },
+                    "seqNo": {
+                        "type": "integer",
+                        "description": "Opensearch может использовать порядковый номер операций, чтобы убедиться, что более новая версия документа никогда не будет отменена изменением, которому присвоен меньший порядковый номер.",
+                        "format": "int64"
+                    },
+                    "primaryTerm": {
+                        "type": "integer",
+                        "description": "Первичный термин для группы репликации - это просто счетчик того, сколько раз менялся первичный шард.",
+                        "format": "int64"
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "VTB ID сотрудника, сохранившего запись"
+                    },
+                    "authorRoles": {
+                        "type": "array",
+                        "description": "Роли сотрудника сохранившего запись",
+                        "items": {
+                            "type": "string",
+                            "description": "Роли сотрудника сохранившего запись"
+                        }
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Имя профиля поиска"
+                    },
+                    "onlyMy": {
+                        "type": "boolean",
+                        "description": "true - личный фильтр для текущего пользователем, false - проектный/публичный фильтр"
+                    },
+                    "apply": {
+                        "type": "boolean",
+                        "description": "true - текущему пользователю доступна возможность применения профиля поиска, false - текущему пользователю не доступна возможность применения профиля поиска"
+                    },
+                    "share": {
+                        "type": "boolean",
+                        "description": "true - текущему пользователю доступна команда \"Поделиться\", false - текущему пользователю не доступна команда \"Поделиться\""
+                    },
+                    "delete": {
+                        "type": "boolean",
+                        "description": "true - текущему пользователю доступна возможность удаления профиля поиска, false - текущему пользователю не доступна возможность удаления профиля поиска"
+                    },
+                    "storageType": {
+                        "type": "string",
+                        "enum": [
+                            "hot",
+                            "cold",
+                            "syslogs"
+                        ]
+                    },
+                    "startTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "endTime": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2022-01-01T00:00:00Z"
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов",
+                        "items": {
+                            "$ref": "#/components/schemas/SavedSearchFilter"
+                        }
+                    }
+                },
+                "description": "Описание профиля поиска"
+            },
+            "SavedSearchAttributes": {
+                "required": [
+                    "limit"
+                ],
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Кол-во сообщений для отображения",
+                        "format": "int32"
+                    },
+                    "cursor": {
+                        "$ref": "#/components/schemas/SavedSearchCursor"
+                    }
+                },
+                "description": "Атрибуты к запросу в оперативное хранилище"
+            },
+            "Field": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Название поля"
+                    },
+                    "controlType": {
+                        "type": "string",
+                        "description": "Тип поля",
+                        "enum": [
+                            "select",
+                            "datetime",
+                            "text"
+                        ]
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Описание поля"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "description": "Флаг обязательности"
+                    },
+                    "options": {
+                        "type": "array",
+                        "description": "Список возможных значений поля",
+                        "items": {
+                            "type": "string",
+                            "description": "Список возможных значений поля"
+                        }
+                    },
+                    "inputWidth": {
+                        "type": "integer",
+                        "description": "Ширина поля",
+                        "format": "int32"
+                    }
+                },
+                "description": "Объект с данными для поля фильтра"
+            },
+            "FormData": {
+                "type": "object",
+                "properties": {
+                    "fields": {
+                        "type": "array",
+                        "description": "Базовые поля фильтра",
+                        "items": {
+                            "$ref": "#/components/schemas/Field"
+                        }
+                    },
+                    "props": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "description": "Второстепенные или дополнительные поля фильтра",
+                            "items": {
+                                "$ref": "#/components/schemas/Field"
+                            }
+                        },
+                        "description": "Второстепенные или дополнительные поля фильтра"
+                    }
+                },
+                "description": "Объект с данными полей фильтра"
+            },
+            "OpenSearchTraceResponse": {
+                "type": "object",
+                "properties": {
+                    "payload": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "description": "Ответ с сообщениями из архивного хранилища на запрос трассировки"
+            },
+            "OpenSearchSingleRowResponse": {
+                "type": "object",
+                "properties": {
+                    "payload": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "description": "Ответа с конкретным сообщением из оперативного хранилища"
+            },
+            "ConstraintResponse": {
+                "required": [
+                    "maxIntervalCold",
+                    "maxIntervalHot"
+                ],
+                "type": "object",
+                "properties": {
+                    "maxIntervalHot": {
+                        "type": "integer",
+                        "description": "Максимальное количество дней хранения в горячем хранилище",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "maxIntervalCold": {
+                        "type": "integer",
+                        "description": "Максимальное количество дней хранения в холодном хранилище",
+                        "format": "int32",
+                        "example": 10
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    }
+}
