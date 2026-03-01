@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import type { LogEntry } from '@/types/api'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -6,6 +6,15 @@ import type { LogEntry } from '@/types/api'
 const HIDDEN_FIELDS = new Set(['_id', '@timestamp', 'levelInt'])
 // Special fields that have fixed rendering order and style when pinned
 const SPECIAL_FIELDS = new Set(['level', 'appName', 'text'])
+
+const MIN_COL_WIDTH = 48
+
+const DEFAULT_COL_WIDTHS: Record<string, number> = {
+  time:    192, // w-48
+  level:    64, // w-16
+  appName: 144, // w-36
+  // custom pinned fields default to 112 (w-28), see getColWidth()
+}
 
 function getLevelColor(level: string): string {
   const colors: Record<string, string> = {
@@ -69,6 +78,43 @@ function IconPin({ cls }: { cls: string }) {
     <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
       <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
     </svg>
+  )
+}
+
+// ─── ResizeHandle ─────────────────────────────────────────────────────────────
+
+function ResizeHandle({ onResize, dark }: { onResize: (delta: number) => void; dark: boolean }) {
+  const startXRef = useRef<number>(0)
+
+  function handleMouseDown(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    startXRef.current = e.clientX
+
+    function onMouseMove(ev: MouseEvent) {
+      const delta = ev.clientX - startXRef.current
+      startXRef.current = ev.clientX
+      onResize(delta)
+    }
+
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className={[
+        'absolute right-0 top-0 bottom-0 w-1 cursor-col-resize z-10',
+        'opacity-0 hover:opacity-100 transition-opacity',
+        dark ? 'hover:bg-blue-500' : 'hover:bg-blue-400',
+      ].join(' ')}
+    />
   )
 }
 
@@ -183,13 +229,18 @@ interface LogRowProps {
   log: LogEntry
   dark: boolean
   pinnedFields: string[]
+  colWidths: Record<string, number>
   onInclude: (name: string, value: string) => void
   onExclude: (name: string, value: string) => void
   onPin: (name: string) => void
   onUnpin: (name: string) => void
 }
 
-function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin }: LogRowProps) {
+function getColWidth(colWidths: Record<string, number>, col: string): number {
+  return colWidths[col] ?? 112
+}
+
+function LogRow({ log, dark, pinnedFields, colWidths, onInclude, onExclude, onPin, onUnpin }: LogRowProps) {
   const [expanded, setExpanded] = useState(false)
 
   const levelColor = getLevelColor(log.level)
@@ -205,9 +256,9 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
   const appCls    = dark ? 'text-slate-300'   : 'text-gray-700'
   const textCls   = dark ? 'text-slate-500'   : 'text-gray-500'
 
-  const hasLevel   = pinnedFields.includes('level')
-  const hasAppName = pinnedFields.includes('appName')
-  const hasText    = pinnedFields.includes('text')
+  const hasLevel     = pinnedFields.includes('level')
+  const hasAppName   = pinnedFields.includes('appName')
+  const hasText      = pinnedFields.includes('text')
   const customPinned = pinnedFields.filter(f => !SPECIAL_FIELDS.has(f))
 
   return (
@@ -230,15 +281,18 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
         />
 
         {/* Time — always fixed */}
-        <span className={`text-xs font-mono w-48 flex-shrink-0 ${timeCls}`}>
+        <span
+          className={`text-xs font-mono flex-shrink-0 overflow-hidden ${timeCls}`}
+          style={{ width: getColWidth(colWidths, 'time') + 'px' }}
+        >
           {formatTime(log.localTime)}
         </span>
 
         {/* Level badge — shown only if pinned */}
         {hasLevel && (
           <span
-            className="text-xs font-bold w-16 flex-shrink-0 text-center px-1.5 py-0.5 rounded"
-            style={{ color: levelColor, backgroundColor: levelBg }}
+            className="text-xs font-bold flex-shrink-0 text-center px-1.5 py-0.5 rounded overflow-hidden"
+            style={{ width: getColWidth(colWidths, 'level') + 'px', color: levelColor, backgroundColor: levelBg }}
           >
             {log.level}
           </span>
@@ -247,7 +301,8 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
         {/* AppName — shown only if pinned */}
         {hasAppName && (
           <span
-            className={`text-xs w-36 flex-shrink-0 truncate ${appCls}`}
+            className={`text-xs flex-shrink-0 truncate ${appCls}`}
+            style={{ width: getColWidth(colWidths, 'appName') + 'px' }}
             title={log.appName}
           >
             {log.appName ?? '—'}
@@ -258,7 +313,8 @@ function LogRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin 
         {customPinned.map(field => (
           <span
             key={field}
-            className={`text-xs w-28 flex-shrink-0 truncate ${appCls}`}
+            className={`text-xs flex-shrink-0 truncate ${appCls}`}
+            style={{ width: getColWidth(colWidths, field) + 'px' }}
             title={formatValue(log[field])}
           >
             {formatValue(log[field]) || '—'}
@@ -300,6 +356,14 @@ export default function LogTable({
   onInclude, onExclude, onPin, onUnpin,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COL_WIDTHS)
+
+  const resizeCol = useCallback((col: string, delta: number) => {
+    setColWidths(prev => ({
+      ...prev,
+      [col]: Math.max(MIN_COL_WIDTH, (prev[col] ?? 112) + delta),
+    }))
+  }, [])
 
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
@@ -330,39 +394,73 @@ export default function LogTable({
     )
   }
 
-  const hasLevel   = pinnedFields.includes('level')
-  const hasAppName = pinnedFields.includes('appName')
-  const hasText    = pinnedFields.includes('text')
+  const hasLevel     = pinnedFields.includes('level')
+  const hasAppName   = pinnedFields.includes('appName')
+  const hasText      = pinnedFields.includes('text')
   const customPinned = pinnedFields.filter(f => !SPECIAL_FIELDS.has(f))
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       {/* Sticky header */}
-      <div className={`flex items-center gap-2 px-3 py-1.5 border-b ${borderCls} ${headerBg} flex-shrink-0`}>
+      <div className={`flex items-center gap-2 px-3 py-1.5 border-b ${borderCls} ${headerBg} flex-shrink-0 select-none`}>
         <div className="w-3 flex-shrink-0" />  {/* chevron space */}
         <div className="w-0.5 flex-shrink-0" /> {/* level bar space */}
-        <span className={`text-xs font-semibold uppercase tracking-wide w-48 flex-shrink-0 ${headerText}`}>
-          Время
-        </span>
+
+        {/* Time header */}
+        <div
+          className="relative flex-shrink-0"
+          style={{ width: getColWidth(colWidths, 'time') + 'px' }}
+        >
+          <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+            Время
+          </span>
+          <ResizeHandle onResize={d => resizeCol('time', d)} dark={dark} />
+        </div>
+
+        {/* Level header */}
         {hasLevel && (
-          <span className={`text-xs font-semibold uppercase tracking-wide w-16 flex-shrink-0 text-center ${headerText}`}>
-            Уровень
-          </span>
-        )}
-        {hasAppName && (
-          <span className={`text-xs font-semibold uppercase tracking-wide w-36 flex-shrink-0 ${headerText}`}>
-            Приложение
-          </span>
-        )}
-        {customPinned.map(field => (
-          <span
-            key={field}
-            className={`text-xs font-semibold uppercase tracking-wide w-28 flex-shrink-0 truncate ${headerText}`}
-            title={field}
+          <div
+            className="relative flex-shrink-0 text-center"
+            style={{ width: getColWidth(colWidths, 'level') + 'px' }}
           >
-            {field}
-          </span>
+            <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+              Уровень
+            </span>
+            <ResizeHandle onResize={d => resizeCol('level', d)} dark={dark} />
+          </div>
+        )}
+
+        {/* AppName header */}
+        {hasAppName && (
+          <div
+            className="relative flex-shrink-0"
+            style={{ width: getColWidth(colWidths, 'appName') + 'px' }}
+          >
+            <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+              Приложение
+            </span>
+            <ResizeHandle onResize={d => resizeCol('appName', d)} dark={dark} />
+          </div>
+        )}
+
+        {/* Custom pinned field headers */}
+        {customPinned.map(field => (
+          <div
+            key={field}
+            className="relative flex-shrink-0"
+            style={{ width: getColWidth(colWidths, field) + 'px' }}
+          >
+            <span
+              className={`text-xs font-semibold uppercase tracking-wide truncate block ${headerText}`}
+              title={field}
+            >
+              {field}
+            </span>
+            <ResizeHandle onResize={d => resizeCol(field, d)} dark={dark} />
+          </div>
         ))}
+
+        {/* Message header — flex-1, no resize handle needed */}
         {hasText && (
           <span className={`text-xs font-semibold uppercase tracking-wide flex-1 ${headerText}`}>
             Сообщение
@@ -378,6 +476,7 @@ export default function LogTable({
             log={log}
             dark={dark}
             pinnedFields={pinnedFields}
+            colWidths={colWidths}
             onInclude={onInclude}
             onExclude={onExclude}
             onPin={onPin}
