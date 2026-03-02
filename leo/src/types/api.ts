@@ -88,6 +88,7 @@ export interface LogQueryPageableRequest {
   queryAttributes: LogQueryRequest
   pageAttributes: OpenSearchAttributes
   filters?: OpenSearchFilter[]
+  isCHRequest?: boolean
 }
 
 // ─── Response ────────────────────────────────────────────────────────────────

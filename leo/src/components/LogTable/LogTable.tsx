@@ -32,7 +32,14 @@ function getLevelColor(level: string): string {
 function formatTime(iso: string | undefined): string {
   if (!iso) return '—'
   try {
-    return new Date(iso).toISOString().replace('T', ' ').slice(0, 23)
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return iso
+    // Format in browser's local timezone using local-time getters
+    const pad = (n: number, len = 2) => String(n).padStart(len, '0')
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+      `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+    )
   } catch {
     return iso
   }

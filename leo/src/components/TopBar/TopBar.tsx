@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { UserConfig } from '@/types/config'
 import type { TimeRange } from '@/store/AppContext'
 import DateRangePicker from '@/components/DateRangePicker/DateRangePicker'
+import DataSourceToggle, { type DataSource } from './DataSourceToggle'
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ interface Props {
   luceneQuery: string
   isLoading: boolean
   activePresetMinutes: number | null
+  dataSource: DataSource
   onPreset: (minutes: number) => void
   onLuceneChange: (q: string) => void
   onLuceneSearch: () => void
@@ -121,6 +123,7 @@ interface Props {
   onExport: (format: 'txt' | 'csv') => void
   onThemeToggle: () => void
   onLogout: () => void
+  onDataSourceChange: (source: DataSource) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -133,6 +136,7 @@ export default function TopBar({
   luceneQuery,
   isLoading,
   activePresetMinutes,
+  dataSource,
   onPreset,
   onCustomRange,
   onLuceneChange,
@@ -140,6 +144,7 @@ export default function TopBar({
   onExport,
   onThemeToggle,
   onLogout,
+  onDataSourceChange,
 }: Props) {
   const [exportOpen, setExportOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -334,19 +339,28 @@ export default function TopBar({
 
         {/* Total count */}
         {totalCount > 0 && (
-          <>
-            <span className={[
-              'text-xs flex-shrink-0 tabular-nums font-medium',
-              dark ? 'text-slate-300' : 'text-gray-700',
-            ].join(' ')}>
-              {formatCount(totalCount)}
-              <span className={['ml-1 font-normal', dark ? 'text-slate-500' : 'text-gray-400'].join(' ')}>
-                записей
-              </span>
+          <span className={[
+            'text-xs flex-shrink-0 tabular-nums font-medium',
+            dark ? 'text-slate-300' : 'text-gray-700',
+          ].join(' ')}>
+            {formatCount(totalCount)}
+            <span className={['ml-1 font-normal', dark ? 'text-slate-500' : 'text-gray-400'].join(' ')}>
+              записей
             </span>
-            {divider}
-          </>
+          </span>
         )}
+
+        {divider}
+
+        {/* Data source toggle: OpenSearch / ClickHouse */}
+        <DataSourceToggle
+          value={dataSource}
+          onChange={onDataSourceChange}
+          dark={dark}
+          disabled={isLoading}
+        />
+
+        {divider}
 
         {/* Theme toggle */}
         <button

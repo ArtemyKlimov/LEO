@@ -15,8 +15,8 @@ export default function LogViewerPage() {
   const {
     currentUser, config, theme, totalCount,
     timeRange, luceneQuery, logs, filters, histogramBuckets, pinnedFields,
-    cursor,
-    logout, setTheme, setTimeRange, setLuceneQuery,
+    cursor, dataSource,
+    logout, setTheme, setTimeRange, setLuceneQuery, setDataSource,
     setLogData, appendLogs, setLoading, setError, isLoading,
     addFilter, removeFilter, clearFilters, pinField, unpinField,
   } = useApp()
@@ -91,12 +91,14 @@ export default function LogViewerPage() {
     query: string,
     histInterval: DateHistogramInterval = histogramInterval,
     filtersOverride?: OpenSearchFilter[],
+    isCHOverride?: boolean,
   ) => {
     if (!currentUser || !config) return
     setLoading(true)
     setError(null)
     try {
       const activeFilters = filtersOverride ?? filters
+      const isCH = isCHOverride ?? (dataSource === 'clickhouse')
       const luceneFilter = query.trim()
         ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [query.trim()] }]
         : []
@@ -105,6 +107,7 @@ export default function LogViewerPage() {
         {
           filters: [...activeFilters, ...luceneFilter],
           pageAttributes: { dateHistogramInterval: histInterval },
+          isCHRequest: isCH,
         },
         config.logging.maxLogsPerPage,
       )
@@ -114,7 +117,7 @@ export default function LogViewerPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentUser, config, filters, histogramInterval, setLoading, setError, setLogData])
+  }, [currentUser, config, filters, histogramInterval, dataSource, setLoading, setError, setLogData])
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
 
@@ -130,6 +133,7 @@ export default function LogViewerPage() {
         {
           filters: [...filters, ...luceneFilter],
           pageAttributes: { dateHistogramInterval: histogramInterval, cursors: cursor },
+          isCHRequest: dataSource === 'clickhouse',
         },
         config.logging.maxLogsPerPage,
       )
@@ -139,7 +143,7 @@ export default function LogViewerPage() {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, appendLogs])
+  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, dataSource, appendLogs])
 
   // ─── TopBar handlers ─────────────────────────────────────────────────────────
 
@@ -166,6 +170,11 @@ export default function LogViewerPage() {
     if (currentUser) clearToken(currentUser.userId)
     logout()
     navigate('/')
+  }
+
+  function handleDataSourceChange(source: typeof dataSource) {
+    setDataSource(source)
+    if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, source === 'clickhouse')
   }
 
   function handleExport(format: 'txt' | 'csv') {
@@ -285,6 +294,7 @@ export default function LogViewerPage() {
         luceneQuery={luceneQuery}
         isLoading={isLoading}
         activePresetMinutes={activePresetMinutes}
+        dataSource={dataSource}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
@@ -292,6 +302,7 @@ export default function LogViewerPage() {
         onExport={handleExport}
         onThemeToggle={() => setTheme(dark ? 'light' : 'dark')}
         onLogout={handleLogout}
+        onDataSourceChange={handleDataSourceChange}
       />
 
       <Histogram

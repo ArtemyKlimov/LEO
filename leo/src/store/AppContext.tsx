@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import type { AppConfig, UserConfig } from '@/types/config'
 import type { OpenSearchFilter, LogEntry, HistogramBucket, Cursor, OpenSearchResponse } from '@/types/api'
+import type { DataSource } from '@/components/TopBar/DataSourceToggle'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type Theme = 'light' | 'dark'
+export type { DataSource }
 
 export interface TimeRange {
   from: Date
@@ -16,6 +18,7 @@ export interface AppState {
   config: AppConfig | null
   currentUser: UserConfig | null
   theme: Theme
+  dataSource: DataSource
   timeRange: TimeRange | null
   filters: OpenSearchFilter[]
   luceneQuery: string
@@ -33,6 +36,7 @@ export interface AppActions {
   setConfig: (config: AppConfig) => void
   setCurrentUser: (user: UserConfig | null) => void
   setTheme: (theme: Theme) => void
+  setDataSource: (source: DataSource) => void
   setTimeRange: (range: TimeRange) => void
   addFilter: (filter: OpenSearchFilter) => void
   removeFilter: (index: number) => void
@@ -61,6 +65,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<AppConfig | null>(null)
   const [currentUser, setCurrentUserState] = useState<UserConfig | null>(null)
   const [theme, setThemeState] = useState<Theme>('light')
+  const [dataSource, setDataSourceState] = useState<DataSource>('opensearch')
   const [timeRange, setTimeRangeState] = useState<TimeRange | null>(null)
   const [filters, setFilters] = useState<OpenSearchFilter[]>([])
   const [luceneQuery, setLuceneQueryState] = useState('')
@@ -84,6 +89,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t)
+  }, [])
+
+  const setDataSource = useCallback((source: DataSource) => {
+    setDataSourceState(source)
   }, [])
 
   const setTimeRange = useCallback((range: TimeRange) => {
@@ -164,6 +173,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     config,
     currentUser,
     theme,
+    dataSource,
     timeRange,
     filters,
     luceneQuery,
@@ -177,6 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setConfig,
     setCurrentUser,
     setTheme,
+    setDataSource,
     setTimeRange,
     addFilter,
     removeFilter,

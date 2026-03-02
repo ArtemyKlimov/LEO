@@ -58,7 +58,11 @@ export async function getFilterFields(
 export function buildLogRequest(
   from: Date,
   to: Date,
-  overrides: { filters?: LogQueryPageableRequest['filters']; pageAttributes?: Partial<OpenSearchAttributes> } = {},
+  overrides: {
+    filters?: LogQueryPageableRequest['filters']
+    pageAttributes?: Partial<OpenSearchAttributes>
+    isCHRequest?: boolean
+  } = {},
   maxLogs = 100,
 ): LogQueryPageableRequest {
   return {
@@ -73,5 +77,6 @@ export function buildLogRequest(
       ...overrides.pageAttributes,
     },
     filters: overrides.filters ?? [],
+    isCHRequest: overrides.isCHRequest ?? false,
   }
 }
