@@ -128,3 +128,24 @@ export interface FormData {
   fields?: Field[]
   props?: Record<string, Field[]>
 }
+
+// ─── Field top values ────────────────────────────────────────────────────────
+
+export interface FieldValuesRequest {
+  queryAttributes: LogQueryRequest
+  filters?: OpenSearchFilter[]
+  fieldName: string
+  limit?: number
+  isCHRequest?: boolean
+}
+
+export interface FieldValuesBucket {
+  value: string
+  docCount: number
+}
+
+export interface FieldValuesResponse {
+  fieldName: string
+  totalDocCount: number
+  buckets: FieldValuesBucket[]
+}

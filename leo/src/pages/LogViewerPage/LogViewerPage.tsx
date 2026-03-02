@@ -2,14 +2,14 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
-import { fetchLogs, buildLogRequest, getFilterFields } from '@/api/endpoints'
+import { fetchLogs, buildLogRequest, getFilterFields, fetchFieldTopValues } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
 import TopBar, { PRESET_LABELS } from '@/components/TopBar/TopBar'
 import Histogram from '@/components/Histogram/Histogram'
 import Sidebar from '@/components/Sidebar/Sidebar'
 import LogTable from '@/components/LogTable/LogTable'
 import FilterBar from '@/components/FilterBar/FilterBar'
-import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter } from '@/types/api'
+import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse } from '@/types/api'
 
 export default function LogViewerPage() {
   const {
@@ -232,6 +232,27 @@ export default function LogViewerPage() {
 
   // ─── Sidebar handlers ────────────────────────────────────────────────────────
 
+  async function handleFetchTopValues(fieldName: string): Promise<FieldValuesResponse> {
+    if (!currentUser || !config || !timeRange) throw new Error('Not ready')
+    const luceneFilter = luceneQuery.trim()
+      ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
+      : []
+    return fetchFieldTopValues(
+      {
+        queryAttributes: {
+          startTime: timeRange.from.toISOString(),
+          endTime:   timeRange.to.toISOString(),
+        },
+        filters: [...filters, ...luceneFilter],
+        fieldName,
+        limit: 5,
+        isCHRequest: dataSource === 'clickhouse',
+      },
+      currentUser,
+      config,
+    )
+  }
+
   function handleInclude(fieldName: string, value: string) {
     const filter: OpenSearchFilter = {
       attributeName: fieldName,
@@ -334,6 +355,7 @@ export default function LogViewerPage() {
           onExclude={handleExclude}
           onPin={pinField}
           onUnpin={unpinField}
+          onFetchTopValues={handleFetchTopValues}
         />
 
         {/* Log table */}

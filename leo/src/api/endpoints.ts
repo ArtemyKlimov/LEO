@@ -5,6 +5,8 @@ import type {
   OpenSearchAttributes,
   OpenSearchResponse,
   FormData as FieldsFormData,
+  FieldValuesRequest,
+  FieldValuesResponse,
 } from '@/types/api'
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
@@ -48,6 +50,23 @@ export async function getFilterFields(
   config: AppConfig,
 ): Promise<FieldsFormData> {
   return apiFetch<FieldsFormData>('/api/v1/ui/fields', user, config)
+}
+
+// ─── Field top values ─────────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/elasticsearch/field-values
+ * Агрегация топ-N значений поля (для виджета в боковой панели).
+ */
+export async function fetchFieldTopValues(
+  request: FieldValuesRequest,
+  user: UserConfig,
+  config: AppConfig,
+): Promise<FieldValuesResponse> {
+  return apiFetch<FieldValuesResponse>('/api/v1/elasticsearch/field-values', user, config, {
+    method: 'POST',
+    body: request,
+  })
 }
 
 // ─── Request builder helpers ──────────────────────────────────────────────────

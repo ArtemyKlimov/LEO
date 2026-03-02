@@ -614,6 +614,76 @@
                 ]
             }
         },
+        "/api/v1/elasticsearch/field-values": {
+            "post": {
+                "tags": [
+                    "OpenSearch"
+                ],
+                "summary": "Агрегация топ-N значений поля",
+                "description": "Возвращает наиболее часто встречающиеся значения указанного поля в заданном временном диапазоне с учётом фильтров. Используется для виджета 'топ значений' в боковой панели полей.",
+                "operationId": "getFieldTopValues",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FieldValuesRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "*/*": { "schema": { "type": "object" } },
+                            "application/json": { "schema": { "type": "object" } }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "*/*": { "schema": { "type": "object" } },
+                            "application/json": { "schema": { "type": "object" } }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "*/*": { "schema": { "type": "object" } },
+                            "application/json": { "schema": { "type": "object" } }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "*/*": { "schema": { "type": "object" } },
+                            "application/json": { "schema": { "type": "object" } }
+                        }
+                    },
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FieldValuesResponse"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FieldValuesResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/user/data": {
             "get": {
                 "tags": [
@@ -1817,6 +1887,84 @@
                 }
             }
         },
+        "FieldValuesRequest": {
+                "required": [
+                    "queryAttributes",
+                    "fieldName"
+                ],
+                "type": "object",
+                "properties": {
+                    "queryAttributes": {
+                        "$ref": "#/components/schemas/LogQueryRequest"
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Массив фильтров для атрибутов (применяются перед агрегацией)",
+                        "items": {
+                            "$ref": "#/components/schemas/OpenSearchFilters"
+                        }
+                    },
+                    "fieldName": {
+                        "type": "string",
+                        "description": "Имя поля для агрегации значений"
+                    },
+                    "limit": {
+                        "minimum": 1,
+                        "maximum": 20,
+                        "type": "integer",
+                        "description": "Максимальное количество возвращаемых значений",
+                        "default": 5,
+                        "format": "int32"
+                    },
+                    "isCHRequest": {
+                        "type": "boolean",
+                        "description": "true — запрос к ClickHouse, false — к OpenSearch",
+                        "default": false
+                    }
+                },
+                "description": "Параметры запроса агрегации топ значений поля"
+            },
+            "FieldValuesBucket": {
+                "required": [
+                    "value",
+                    "docCount"
+                ],
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "Значение поля"
+                    },
+                    "docCount": {
+                        "type": "integer",
+                        "description": "Количество документов с данным значением",
+                        "format": "int64"
+                    }
+                },
+                "description": "Бакет — пара значение/количество документов"
+            },
+            "FieldValuesResponse": {
+                "type": "object",
+                "properties": {
+                    "fieldName": {
+                        "type": "string",
+                        "description": "Имя агрегируемого поля"
+                    },
+                    "totalDocCount": {
+                        "type": "integer",
+                        "description": "Общее количество документов в выборке (для расчёта процентов)",
+                        "format": "int64"
+                    },
+                    "buckets": {
+                        "type": "array",
+                        "description": "Топ значений поля, отсортированные по docCount по убыванию",
+                        "items": {
+                            "$ref": "#/components/schemas/FieldValuesBucket"
+                        }
+                    }
+                },
+                "description": "Результат агрегации топ значений поля"
+            },
         "securitySchemes": {
             "bearerAuth": {
                 "type": "http",

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import type { Field } from '@/types/api'
+import { createPortal } from 'react-dom'
+import type { Field, FieldValuesBucket, FieldValuesResponse } from '@/types/api'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,15 @@ function IconMinus({ cls }: { cls: string }) {
   )
 }
 
+function IconSearch({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <circle cx="11" cy="11" r="7" />
+      <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+    </svg>
+  )
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -39,11 +49,189 @@ interface Props {
   onExclude: (fieldName: string, value: string) => void
   onPin: (fieldName: string) => void
   onUnpin: (fieldName: string) => void
+  onFetchTopValues: (fieldName: string) => Promise<FieldValuesResponse>
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ActivePicker = { name: string; operator: 'IS' | 'IS NOT' } | null
+
+// ─── TopValues panel (portal overlay) ────────────────────────────────────────
+
+interface TopValuesPanelProps {
+  dark: boolean
+  loading: boolean
+  error: string | null
+  buckets: FieldValuesBucket[] | null
+  totalDocCount: number
+  fieldName: string
+  anchorRef: React.RefObject<HTMLDivElement>
+  onClose: () => void
+  onInclude: (fieldName: string, value: string) => void
+  onExclude: (fieldName: string, value: string) => void
+}
+
+function TopValuesPanel({
+  dark, loading, error, buckets, totalDocCount, fieldName,
+  anchorRef, onClose, onInclude, onExclude,
+}: TopValuesPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [style, setStyle] = useState<React.CSSProperties>({
+    position: 'fixed',
+    top: 0,
+    left: -9999,
+    zIndex: 1000,
+  })
+
+  // Calculate position relative to anchor element
+  useEffect(() => {
+    if (!anchorRef.current) return
+    const rect = anchorRef.current.getBoundingClientRect()
+    const panelWidth = 320
+    const maxHeight = 400
+    const vpH = window.innerHeight
+
+    let top = rect.top
+    if (top + maxHeight > vpH - 8) {
+      top = Math.max(8, vpH - maxHeight - 8)
+    }
+
+    setStyle({
+      position: 'fixed',
+      top,
+      left: rect.right + 4,
+      width: panelWidth,
+      maxHeight,
+      zIndex: 1000,
+    })
+  }, [anchorRef])
+
+  // Close on click outside panel and anchor
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        anchorRef.current && !anchorRef.current.contains(e.target as Node)
+      ) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose, anchorRef])
+
+  const borderCls = dark ? 'border-slate-700' : 'border-gray-200'
+  const bgCls     = dark ? 'bg-slate-800'     : 'bg-white'
+  const headCls   = dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'
+  const valCls    = dark ? 'text-slate-300'   : 'text-gray-700'
+  const pctCls    = dark ? 'text-slate-500'   : 'text-gray-400'
+  const barClr    = dark ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.12)'
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      style={style}
+      className={`rounded-lg border shadow-xl overflow-hidden flex flex-col ${bgCls} ${borderCls}`}
+    >
+      {/* Header */}
+      <div className={`flex items-center justify-between px-3 py-1.5 border-b text-xs flex-shrink-0 ${headCls}`}>
+        <span className="truncate pr-2">
+          Топ: <span className="font-medium">{fieldName}</span>
+        </span>
+        <button
+          onClick={onClose}
+          className={`flex-shrink-0 p-0.5 rounded transition-colors cursor-pointer ${
+            dark ? 'hover:bg-slate-700 text-slate-500 hover:text-slate-300' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+          }`}
+          title="Закрыть"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="overflow-y-auto">
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center py-4">
+            <svg className={`w-4 h-4 animate-spin ${dark ? 'text-slate-500' : 'text-gray-400'}`} viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <p className="text-xs text-red-500 px-3 py-2">{error}</p>
+        )}
+
+        {/* Buckets */}
+        {!loading && !error && buckets && (
+          buckets.length === 0
+            ? <p className={`text-xs px-3 py-2 ${pctCls}`}>Нет данных</p>
+            : (() => {
+                const maxCount = Math.max(...buckets.map(b => b.docCount), 1)
+                return (
+                  <div className="py-1">
+                    {buckets.map(bucket => {
+                      const barW = (bucket.docCount / maxCount) * 100
+                      const pct  = totalDocCount > 0 ? Math.round(bucket.docCount / totalDocCount * 100) : 0
+                      return (
+                        <div
+                          key={bucket.value}
+                          className={`relative px-3 py-1.5 ${dark ? 'hover:bg-slate-700/50' : 'hover:bg-gray-50'}`}
+                        >
+                          {/* Bar background */}
+                          <div
+                            className="absolute left-0 top-0 bottom-0"
+                            style={{ width: barW + '%', backgroundColor: barClr }}
+                          />
+                          {/* Content */}
+                          <div className="relative flex items-start gap-2">
+                            <span className={`flex-1 min-w-0 text-xs break-all leading-normal ${valCls}`}>
+                              {bucket.value || <em className={pctCls}>(пусто)</em>}
+                            </span>
+                            <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                              <span className={`text-xs tabular-nums w-8 text-right ${pctCls}`}>{pct}%</span>
+                              <button
+                                onClick={() => onInclude(fieldName, bucket.value)}
+                                className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                  dark
+                                    ? 'text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/20'
+                                    : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                                title={`Включить: ${bucket.value}`}
+                              >
+                                <IconPlus cls="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => onExclude(fieldName, bucket.value)}
+                                className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                  dark
+                                    ? 'text-slate-500 hover:text-red-400 hover:bg-red-500/20'
+                                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                                }`}
+                                title={`Исключить: ${bucket.value}`}
+                              >
+                                <IconMinus cls="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
 // ─── FieldItem ────────────────────────────────────────────────────────────────
 
@@ -59,11 +247,12 @@ interface FieldItemProps {
   onExclude: (name: string, value: string) => void
   onPin: (name: string) => void
   onUnpin: (name: string) => void
+  onFetchTopValues: (fieldName: string) => Promise<FieldValuesResponse>
 }
 
 function FieldItem({
   field, freq, pinned, dark, active,
-  onActivate, onClose, onInclude, onExclude, onPin, onUnpin,
+  onActivate, onClose, onInclude, onExclude, onPin, onUnpin, onFetchTopValues,
 }: FieldItemProps) {
   const name = field.name ?? ''
   const isActive = active?.name === name
@@ -71,6 +260,14 @@ function FieldItem({
 
   const [inputVal, setInputVal] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const rowRef   = useRef<HTMLDivElement>(null)
+
+  // Top values state
+  const [tvOpen,    setTvOpen]    = useState(false)
+  const [tvLoading, setTvLoading] = useState(false)
+  const [tvError,   setTvError]   = useState<string | null>(null)
+  const [tvBuckets, setTvBuckets] = useState<FieldValuesBucket[] | null>(null)
+  const [tvTotal,   setTvTotal]   = useState(0)
 
   useEffect(() => {
     if (isActive) {
@@ -86,6 +283,33 @@ function FieldItem({
     onClose()
   }
 
+  async function handleMagnifier() {
+    if (tvOpen) {
+      setTvOpen(false)
+      return
+    }
+    // Close the IS/IS NOT picker if it's open
+    if (isActive) onClose()
+    setTvOpen(true)
+    setTvLoading(true)
+    setTvError(null)
+    setTvBuckets(null)
+    try {
+      const res = await onFetchTopValues(name)
+      setTvBuckets(res.buckets)
+      setTvTotal(res.totalDocCount)
+    } catch {
+      setTvError('Не удалось загрузить данные')
+    } finally {
+      setTvLoading(false)
+    }
+  }
+
+  function handleActivate(n: string, op: 'IS' | 'IS NOT') {
+    setTvOpen(false)  // close top values if open
+    onActivate(n, op)
+  }
+
   const rowBg  = dark ? 'hover:bg-slate-800' : 'hover:bg-gray-50'
   const btnCls = (color: string) =>
     `p-0.5 rounded cursor-pointer transition-colors ${dark ? `text-slate-600 hover:${color} hover:bg-slate-700` : `text-gray-400 hover:${color} hover:bg-gray-100`}`
@@ -97,7 +321,7 @@ function FieldItem({
     }`
 
   return (
-    <div className={`group ${rowBg} transition-colors`}>
+    <div ref={rowRef} className={`group ${rowBg} transition-colors`}>
       {/* Field row */}
       <div className="relative flex items-center gap-1 px-3 py-1.5 cursor-default">
         {/* Frequency bar background */}
@@ -126,18 +350,29 @@ function FieldItem({
         {/* Action buttons — visible on hover */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 relative z-10">
           <button
-            onClick={() => isActive && active?.operator === 'IS' ? onClose() : onActivate(name, 'IS')}
+            onClick={() => isActive && active?.operator === 'IS' ? onClose() : handleActivate(name, 'IS')}
             className={btnCls('text-emerald-500')}
             title="Добавить фильтр (включить)"
           >
             <IconPlus cls="w-3 h-3" />
           </button>
           <button
-            onClick={() => isActive && active?.operator === 'IS NOT' ? onClose() : onActivate(name, 'IS NOT')}
+            onClick={() => isActive && active?.operator === 'IS NOT' ? onClose() : handleActivate(name, 'IS NOT')}
             className={btnCls('text-red-500')}
             title="Добавить фильтр (исключить)"
           >
             <IconMinus cls="w-3 h-3" />
+          </button>
+          <button
+            onClick={handleMagnifier}
+            className={`p-0.5 rounded cursor-pointer transition-colors ${
+              tvOpen
+                ? 'text-blue-500'
+                : dark ? 'text-slate-600 hover:text-blue-400 hover:bg-slate-700' : 'text-gray-400 hover:text-blue-500 hover:bg-gray-100'
+            }`}
+            title="Топ значений поля"
+          >
+            <IconSearch cls="w-3 h-3" />
           </button>
           <button
             onClick={() => pinned ? onUnpin(name) : onPin(name)}
@@ -153,7 +388,23 @@ function FieldItem({
         </div>
       </div>
 
-      {/* Value picker — shown when active */}
+      {/* Top values panel — portal overlay */}
+      {tvOpen && (
+        <TopValuesPanel
+          dark={dark}
+          loading={tvLoading}
+          error={tvError}
+          buckets={tvBuckets}
+          totalDocCount={tvTotal}
+          fieldName={name}
+          anchorRef={rowRef}
+          onClose={() => setTvOpen(false)}
+          onInclude={onInclude}
+          onExclude={onExclude}
+        />
+      )}
+
+      {/* Value picker — shown when active (IS / IS NOT filter) */}
       {isActive && (
         <div className={`mx-3 mb-2 rounded-lg border overflow-hidden ${dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
           {/* Header */}
@@ -212,7 +463,7 @@ function FieldItem({
 
 export default function Sidebar({
   dark, fields, fieldFrequency, pinnedFields, isLoading,
-  onInclude, onExclude, onPin, onUnpin,
+  onInclude, onExclude, onPin, onUnpin, onFetchTopValues,
 }: Props) {
   const [activePicker, setActivePicker] = useState<ActivePicker>(null)
 
@@ -297,6 +548,7 @@ export default function Sidebar({
             onExclude={onExclude}
             onPin={onPin}
             onUnpin={onUnpin}
+            onFetchTopValues={onFetchTopValues}
           />
         ))}
       </div>
