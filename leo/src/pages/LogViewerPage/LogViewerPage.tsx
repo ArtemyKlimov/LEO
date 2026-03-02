@@ -9,6 +9,7 @@ import Histogram from '@/components/Histogram/Histogram'
 import Sidebar from '@/components/Sidebar/Sidebar'
 import LogTable from '@/components/LogTable/LogTable'
 import FilterBar from '@/components/FilterBar/FilterBar'
+import FilterBuilder from '@/components/FilterBuilder/FilterBuilder'
 import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse } from '@/types/api'
 
 export default function LogViewerPage() {
@@ -334,6 +335,16 @@ export default function LogViewerPage() {
         onIntervalChange={handleIntervalChange}
         onBucketClick={handleBucketClick}
         onRangeSelect={handleRangeSelect}
+      />
+
+      <FilterBuilder
+        dark={dark}
+        fields={uiFields}
+        onAdd={filter => {
+          const newFilters = [...filters, filter]
+          addFilter(filter)
+          if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, newFilters)
+        }}
       />
 
       <FilterBar
