@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { getToken } from '@/auth/jwtService'
-import { fetchLogs, buildLogRequest } from '@/api/endpoints'
+import { fetchLogs, buildLogRequest, fetchProjectCodes } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
 import type { UserConfig } from '@/types/config'
 
 const LAST_15_MIN_MS = 15 * 60 * 1000
 
 export default function LoginPage() {
-  const { config, theme, setCurrentUser, setTimeRange, setLogData, setLoading } = useApp()
+  const { config, theme, setCurrentUser, setTimeRange, setLogData, setLoading, setAvailableProjectCodes, setSelectedProjectCodes } = useApp()
   const navigate = useNavigate()
 
   const [selected, setSelected] = useState<UserConfig | null>(null)
@@ -28,6 +28,11 @@ export default function LoginPage() {
     try {
       // ensure token is ready
       await getToken(selected, config)
+
+      // load available project codes (silently ignore errors)
+      const codes = await fetchProjectCodes(selected, config).catch(() => [])
+      setAvailableProjectCodes(codes)
+      setSelectedProjectCodes(codes)
 
       const to = new Date()
       const from = new Date(to.getTime() - LAST_15_MIN_MS)

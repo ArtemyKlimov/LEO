@@ -14,9 +14,10 @@ import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, F
 
 export default function LogViewerPage() {
   const {
-    currentUser, config, theme, totalCount,
+    currentUser, config, theme,
     timeRange, luceneQuery, logs, filters, histogramBuckets, pinnedFields,
-    cursor, dataSource,
+    cursor, dataSource, totalCount,
+    availableProjectCodes, selectedProjectCodes, setSelectedProjectCodes,
     logout, setTheme, setTimeRange, setLuceneQuery, setDataSource,
     setLogData, appendLogs, setLoading, setError, isLoading,
     addFilter, removeFilter, clearFilters, pinField, unpinField,
@@ -93,6 +94,7 @@ export default function LogViewerPage() {
     histInterval: DateHistogramInterval = histogramInterval,
     filtersOverride?: OpenSearchFilter[],
     isCHOverride?: boolean,
+    projectCodesOverride?: string[],
   ) => {
     if (!currentUser || !config) return
     setLoading(true)
@@ -103,10 +105,15 @@ export default function LogViewerPage() {
       const luceneFilter = query.trim()
         ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [query.trim()] }]
         : []
+      const activeCodes = projectCodesOverride ?? selectedProjectCodes
+      const projectCodeFilter: OpenSearchFilter[] =
+        activeCodes.length > 0 && activeCodes.length < availableProjectCodes.length
+          ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: activeCodes }]
+          : []
       const req = buildLogRequest(
         from, to,
         {
-          filters: [...activeFilters, ...luceneFilter],
+          filters: [...activeFilters, ...luceneFilter, ...projectCodeFilter],
           pageAttributes: { dateHistogramInterval: histInterval },
           isCHRequest: isCH,
         },
@@ -118,7 +125,7 @@ export default function LogViewerPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentUser, config, filters, histogramInterval, dataSource, setLoading, setError, setLogData])
+  }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, availableProjectCodes, setLoading, setError, setLogData])
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
 
@@ -129,10 +136,14 @@ export default function LogViewerPage() {
       const luceneFilter = luceneQuery.trim()
         ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
         : []
+      const projectCodeFilter: OpenSearchFilter[] =
+        selectedProjectCodes.length > 0 && selectedProjectCodes.length < availableProjectCodes.length
+          ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+          : []
       const req = buildLogRequest(
         timeRange.from, timeRange.to,
         {
-          filters: [...filters, ...luceneFilter],
+          filters: [...filters, ...luceneFilter, ...projectCodeFilter],
           pageAttributes: { dateHistogramInterval: histogramInterval, cursors: cursor },
           isCHRequest: dataSource === 'clickhouse',
         },
@@ -144,7 +155,7 @@ export default function LogViewerPage() {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, dataSource, appendLogs])
+  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, dataSource, selectedProjectCodes, availableProjectCodes, appendLogs])
 
   // ─── TopBar handlers ─────────────────────────────────────────────────────────
 
@@ -176,6 +187,11 @@ export default function LogViewerPage() {
   function handleDataSourceChange(source: typeof dataSource) {
     setDataSource(source)
     if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, source === 'clickhouse')
+  }
+
+  function handleProjectCodesChange(codes: string[]) {
+    setSelectedProjectCodes(codes)
+    if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, undefined, codes)
   }
 
   function handleExport(format: 'txt' | 'csv') {
@@ -311,12 +327,13 @@ export default function LogViewerPage() {
       <TopBar
         dark={dark}
         user={currentUser}
-        totalCount={totalCount}
         timeRange={timeRange}
         luceneQuery={luceneQuery}
         isLoading={isLoading}
         activePresetMinutes={activePresetMinutes}
         dataSource={dataSource}
+        availableProjectCodes={availableProjectCodes}
+        selectedProjectCodes={selectedProjectCodes}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
@@ -325,6 +342,7 @@ export default function LogViewerPage() {
         onThemeToggle={() => setTheme(dark ? 'light' : 'dark')}
         onLogout={handleLogout}
         onDataSourceChange={handleDataSourceChange}
+        onProjectCodesChange={handleProjectCodesChange}
       />
 
       <Histogram

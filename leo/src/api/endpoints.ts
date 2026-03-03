@@ -69,6 +69,22 @@ export async function fetchFieldTopValues(
   })
 }
 
+// ─── Project codes ────────────────────────────────────────────────────────────
+
+interface ProjectCodesResponse { projectCodes: string[] }
+
+/**
+ * GET /api/v1/elasticsearch/projectCodes
+ * Список projectCode, доступных текущему пользователю.
+ */
+export async function fetchProjectCodes(
+  user: UserConfig,
+  config: AppConfig,
+): Promise<string[]> {
+  const res = await apiFetch<ProjectCodesResponse>('/api/v1/elasticsearch/projectCodes', user, config)
+  return res.projectCodes ?? []
+}
+
 // ─── Request builder helpers ──────────────────────────────────────────────────
 
 /**

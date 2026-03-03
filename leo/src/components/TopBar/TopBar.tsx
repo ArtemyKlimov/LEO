@@ -3,6 +3,7 @@ import type { UserConfig } from '@/types/config'
 import type { TimeRange } from '@/store/AppContext'
 import DateRangePicker from '@/components/DateRangePicker/DateRangePicker'
 import DataSourceToggle, { type DataSource } from './DataSourceToggle'
+import ProjectCodePicker from '@/components/ProjectCodePicker/ProjectCodePicker'
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -36,10 +37,6 @@ function formatRange(range: TimeRange): string {
       hour: '2-digit', minute: '2-digit',
     })
   return `${fmt(range.from)} — ${fmt(range.to)}`
-}
-
-function formatCount(n: number): string {
-  return n.toLocaleString('ru-RU')
 }
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
@@ -110,12 +107,13 @@ function IconCalendar({ cls }: { cls: string }) {
 interface Props {
   dark: boolean
   user: UserConfig
-  totalCount: number
   timeRange: TimeRange | null
   luceneQuery: string
   isLoading: boolean
   activePresetMinutes: number | null
   dataSource: DataSource
+  availableProjectCodes: string[]
+  selectedProjectCodes: string[]
   onPreset: (minutes: number) => void
   onLuceneChange: (q: string) => void
   onLuceneSearch: () => void
@@ -124,6 +122,7 @@ interface Props {
   onThemeToggle: () => void
   onLogout: () => void
   onDataSourceChange: (source: DataSource) => void
+  onProjectCodesChange: (codes: string[]) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -131,12 +130,13 @@ interface Props {
 export default function TopBar({
   dark,
   user,
-  totalCount,
   timeRange,
   luceneQuery,
   isLoading,
   activePresetMinutes,
   dataSource,
+  availableProjectCodes,
+  selectedProjectCodes,
   onPreset,
   onCustomRange,
   onLuceneChange,
@@ -145,6 +145,7 @@ export default function TopBar({
   onThemeToggle,
   onLogout,
   onDataSourceChange,
+  onProjectCodesChange,
 }: Props) {
   const [exportOpen, setExportOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -337,17 +338,17 @@ export default function TopBar({
         {/* Spacer — раздвигает левую и правую группы */}
         <div className="flex-1" />
 
-        {/* Total count */}
-        {totalCount > 0 && (
-          <span className={[
-            'text-xs flex-shrink-0 tabular-nums font-medium',
-            dark ? 'text-slate-300' : 'text-gray-700',
-          ].join(' ')}>
-            {formatCount(totalCount)}
-            <span className={['ml-1 font-normal', dark ? 'text-slate-500' : 'text-gray-400'].join(' ')}>
-              записей
-            </span>
-          </span>
+        {/* Project code picker */}
+        {availableProjectCodes.length > 0 && (
+          <>
+            <ProjectCodePicker
+              dark={dark}
+              available={availableProjectCodes}
+              selected={selectedProjectCodes}
+              onChange={onProjectCodesChange}
+            />
+            {divider}
+          </>
         )}
 
         {divider}

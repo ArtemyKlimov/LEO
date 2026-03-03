@@ -30,6 +30,9 @@ export interface AppState {
   histogramBuckets: HistogramBucket[]
   totalCount: number
   cursor: Record<string, Cursor> | null
+  // Project codes
+  availableProjectCodes: string[]
+  selectedProjectCodes: string[]
 }
 
 export interface AppActions {
@@ -51,6 +54,9 @@ export interface AppActions {
   setLogData: (response: OpenSearchResponse) => void
   appendLogs: (response: OpenSearchResponse) => void
   resetLogData: () => void
+  // Project codes
+  setAvailableProjectCodes: (codes: string[]) => void
+  setSelectedProjectCodes: (codes: string[]) => void
 }
 
 type AppContextValue = AppState & AppActions
@@ -77,6 +83,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [histogramBuckets, setHistogramBuckets] = useState<HistogramBucket[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [cursor, setCursor] = useState<Record<string, Cursor> | null>(null)
+  const [availableProjectCodes, setAvailableProjectCodesState] = useState<string[]>([])
+  const [selectedProjectCodes, setSelectedProjectCodesState] = useState<string[]>([])
 
   const setConfig = useCallback((cfg: AppConfig) => {
     setConfigState(cfg)
@@ -156,6 +164,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCursor(null)
   }, [])
 
+  const setAvailableProjectCodes = useCallback((codes: string[]) => setAvailableProjectCodesState(codes), [])
+  const setSelectedProjectCodes = useCallback((codes: string[]) => setSelectedProjectCodesState(codes), [])
+
   const logout = useCallback(() => {
     setCurrentUserState(null)
     setFilters([])
@@ -167,6 +178,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHistogramBuckets([])
     setTotalCount(0)
     setCursor(null)
+    setAvailableProjectCodesState([])
+    setSelectedProjectCodesState([])
   }, [])
 
   const value: AppContextValue = {
@@ -201,6 +214,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLogData,
     appendLogs,
     resetLogData,
+    availableProjectCodes,
+    selectedProjectCodes,
+    setAvailableProjectCodes,
+    setSelectedProjectCodes,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
