@@ -63,9 +63,11 @@ export async function fetchFieldTopValues(
   user: UserConfig,
   config: AppConfig,
 ): Promise<FieldValuesResponse> {
+  const { filters, ...rest } = request
+  const body: FieldValuesRequest = filters?.length ? { ...rest, filters } : rest
   return apiFetch<FieldValuesResponse>('/api/v1/elasticsearch/field-values', user, config, {
     method: 'POST',
-    body: request,
+    body,
   })
 }
 
