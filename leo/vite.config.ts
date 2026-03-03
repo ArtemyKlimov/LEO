@@ -66,12 +66,19 @@ export default defineConfig({
         target: backendUrl,
         changeOrigin: true,
         configure: (proxy) => {
-          // http-proxy иногда добавляет ;charset=UTF-8 к Content-Type,
-          // что Spring отвергает (ожидает строго "application/json")
+          // Spring требует строго "application/json" без charset и параметров.
+          // http-proxy может добавлять ";charset=UTF-8", поэтому нормализуем здесь.
           proxy.on('proxyReq', (proxyReq) => {
-            const ct = proxyReq.getHeader('content-type')
-            if (typeof ct === 'string' && ct.startsWith('application/json')) {
-              proxyReq.setHeader('content-type', 'application/json')
+            const hasBody = ['POST', 'PUT', 'PATCH'].includes(proxyReq.method ?? '')
+            if (hasBody) {
+              // Убираем charset и прочие параметры: "application/json;charset=UTF-8" → "application/json"
+              const ct = proxyReq.getHeader('content-type')
+              if (typeof ct === 'string') {
+                proxyReq.setHeader('content-type', ct.split(';')[0].trim())
+              }
+            } else {
+              // GET/DELETE/HEAD — убираем Content-Type полностью, он не нужен
+              proxyReq.removeHeader('content-type')
             }
           })
         },
