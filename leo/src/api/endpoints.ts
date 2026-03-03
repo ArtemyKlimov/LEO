@@ -71,18 +71,22 @@ export async function fetchFieldTopValues(
 
 // ─── Project codes ────────────────────────────────────────────────────────────
 
-interface ProjectCodesResponse { projectCodes: string[] }
+// TODO: раскомментировать когда бэк реализует /api/v1/elasticsearch/projectCodes
+// interface ProjectCodesResponse { projectCodes: string[] }
+// export async function fetchProjectCodes(
+//   user: UserConfig,
+//   config: AppConfig,
+// ): Promise<string[]> {
+//   const res = await apiFetch<ProjectCodesResponse>('/api/v1/elasticsearch/projectCodes', user, config)
+//   return res.projectCodes ?? []
+// }
 
-/**
- * GET /api/v1/elasticsearch/projectCodes
- * Список projectCode, доступных текущему пользователю.
- */
+/** Временный stub: фиксированный список проектов до реализации эндпоинта на бэке */
 export async function fetchProjectCodes(
-  user: UserConfig,
-  config: AppConfig,
+  _user: UserConfig,
+  _config: AppConfig,
 ): Promise<string[]> {
-  const res = await apiFetch<ProjectCodesResponse>('/api/v1/elasticsearch/projectCodes', user, config)
-  return res.projectCodes ?? []
+  return ['TSLG', 'AUQR', 'CPRO']
 }
 
 // ─── Request builder helpers ──────────────────────────────────────────────────

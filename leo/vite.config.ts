@@ -65,6 +65,16 @@ export default defineConfig({
       '/api': {
         target: backendUrl,
         changeOrigin: true,
+        configure: (proxy) => {
+          // http-proxy иногда добавляет ;charset=UTF-8 к Content-Type,
+          // что Spring отвергает (ожидает строго "application/json")
+          proxy.on('proxyReq', (proxyReq) => {
+            const ct = proxyReq.getHeader('content-type')
+            if (typeof ct === 'string' && ct.startsWith('application/json')) {
+              proxyReq.setHeader('content-type', 'application/json')
+            }
+          })
+        },
       },
     },
   },

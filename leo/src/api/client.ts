@@ -44,7 +44,8 @@ export async function apiFetch<T>(
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
+    // Content-Type только для запросов с телом — иначе Spring отвергает GET/DELETE
+    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
   }
 
   let response: Response
