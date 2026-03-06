@@ -25,6 +25,10 @@ export default function LogViewerPage() {
   const navigate = useNavigate()
 
   const dark = theme === 'dark'
+
+  // Нужен выбор projectCode: кодов > 5 и ни один не выбран
+  const needsProjectSelection = availableProjectCodes.length > 5 && selectedProjectCodes.length === 0
+
   const [activePresetMinutes, setActivePresetMinutes] = useState<number | null>(15)
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -107,7 +111,7 @@ export default function LogViewerPage() {
         : []
       const activeCodes = projectCodesOverride ?? selectedProjectCodes
       const projectCodeFilter: OpenSearchFilter[] =
-        activeCodes.length > 0 && activeCodes.length < availableProjectCodes.length
+        activeCodes.length > 0
           ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: activeCodes }]
           : []
       const req = buildLogRequest(
@@ -125,7 +129,7 @@ export default function LogViewerPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, availableProjectCodes, setLoading, setError, setLogData])
+  }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, setLoading, setError, setLogData])
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
 
@@ -137,7 +141,7 @@ export default function LogViewerPage() {
         ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
         : []
       const projectCodeFilter: OpenSearchFilter[] =
-        selectedProjectCodes.length > 0 && selectedProjectCodes.length < availableProjectCodes.length
+        selectedProjectCodes.length > 0
           ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
           : []
       const req = buildLogRequest(
@@ -155,7 +159,7 @@ export default function LogViewerPage() {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, dataSource, selectedProjectCodes, availableProjectCodes, appendLogs])
+  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, dataSource, selectedProjectCodes, appendLogs])
 
   // ─── TopBar handlers ─────────────────────────────────────────────────────────
 
@@ -191,7 +195,9 @@ export default function LogViewerPage() {
 
   function handleProjectCodesChange(codes: string[]) {
     setSelectedProjectCodes(codes)
-    if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, undefined, codes)
+    if (codes.length > 0 && timeRange) {
+      doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, undefined, codes)
+    }
   }
 
   function handleExport(format: 'txt' | 'csv') {
@@ -334,6 +340,7 @@ export default function LogViewerPage() {
         dataSource={dataSource}
         availableProjectCodes={availableProjectCodes}
         selectedProjectCodes={selectedProjectCodes}
+        highlightProjectCodes={needsProjectSelection}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
@@ -345,6 +352,21 @@ export default function LogViewerPage() {
         onProjectCodesChange={handleProjectCodesChange}
       />
 
+      {needsProjectSelection ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <svg
+            className={['w-10 h-10', dark ? 'text-slate-600' : 'text-gray-300'].join(' ')}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+          <p className={['text-sm', dark ? 'text-slate-400' : 'text-gray-500'].join(' ')}>
+            Выберите projectCode в верхней панели для загрузки логов
+          </p>
+        </div>
+      ) : (
+        <>
       <Histogram
         dark={dark}
         buckets={histogramBuckets}
@@ -403,6 +425,8 @@ export default function LogViewerPage() {
           />
         </main>
       </div>
+        </>
+      )}
     </div>
   )
 }

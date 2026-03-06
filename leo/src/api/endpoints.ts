@@ -7,6 +7,7 @@ import type {
   FormData as FieldsFormData,
   FieldValuesRequest,
   FieldValuesResponse,
+  UserData,
 } from '@/types/api'
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
@@ -35,8 +36,8 @@ export async function fetchLogs(
 export async function getUserData(
   user: UserConfig,
   config: AppConfig,
-): Promise<Record<string, unknown>[]> {
-  return apiFetch<Record<string, unknown>[]>('/api/v1/user/data', user, config)
+): Promise<UserData> {
+  return apiFetch<UserData>('/api/v1/user/data', user, config)
 }
 
 // ─── UI fields ────────────────────────────────────────────────────────────────
@@ -73,22 +74,16 @@ export async function fetchFieldTopValues(
 
 // ─── Project codes ────────────────────────────────────────────────────────────
 
-// TODO: раскомментировать когда бэк реализует /api/v1/elasticsearch/projectCodes
-// interface ProjectCodesResponse { projectCodes: string[] }
-// export async function fetchProjectCodes(
-//   user: UserConfig,
-//   config: AppConfig,
-// ): Promise<string[]> {
-//   const res = await apiFetch<ProjectCodesResponse>('/api/v1/elasticsearch/projectCodes', user, config)
-//   return res.projectCodes ?? []
-// }
-
-/** Временный stub: фиксированный список проектов до реализации эндпоинта на бэке */
+/**
+ * Возвращает список доступных projectCode для текущего пользователя.
+ * Источник: GET /api/v1/user/data → поле infoSystemCodes[].
+ */
 export async function fetchProjectCodes(
-  _user: UserConfig,
-  _config: AppConfig,
+  user: UserConfig,
+  config: AppConfig,
 ): Promise<string[]> {
-  return ['TSLG', 'AUQR', 'CPRO']
+  const data = await getUserData(user, config)
+  return data.infoSystemCodes ?? []
 }
 
 // ─── Request builder helpers ──────────────────────────────────────────────────

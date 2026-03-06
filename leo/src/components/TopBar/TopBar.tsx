@@ -114,6 +114,7 @@ interface Props {
   dataSource: DataSource
   availableProjectCodes: string[]
   selectedProjectCodes: string[]
+  highlightProjectCodes?: boolean
   onPreset: (minutes: number) => void
   onLuceneChange: (q: string) => void
   onLuceneSearch: () => void
@@ -137,6 +138,7 @@ export default function TopBar({
   dataSource,
   availableProjectCodes,
   selectedProjectCodes,
+  highlightProjectCodes,
   onPreset,
   onCustomRange,
   onLuceneChange,
@@ -345,6 +347,7 @@ export default function TopBar({
               dark={dark}
               available={availableProjectCodes}
               selected={selectedProjectCodes}
+              highlighted={highlightProjectCodes}
               onChange={onProjectCodesChange}
             />
             {divider}

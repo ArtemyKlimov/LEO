@@ -33,6 +33,13 @@ export interface LogEntry {
   [key: string]: unknown
 }
 
+// ─── User data ───────────────────────────────────────────────────────────────
+
+export interface UserData {
+  roles: string[]
+  infoSystemCodes: string[]
+}
+
 // ─── Cursor ──────────────────────────────────────────────────────────────────
 
 export interface Cursor {

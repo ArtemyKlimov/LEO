@@ -32,20 +32,26 @@ export default function LoginPage() {
       // load available project codes (silently ignore errors)
       const codes = await fetchProjectCodes(selected, config).catch(() => [])
       setAvailableProjectCodes(codes)
-      setSelectedProjectCodes(codes)
+      setCurrentUser(selected)
 
       const to = new Date()
       const from = new Date(to.getTime() - LAST_15_MIN_MS)
-      const range = { from, to, label: 'Последние 15 минут' }
+      setTimeRange({ from, to, label: 'Последние 15 минут' })
 
-      setCurrentUser(selected)
-      setTimeRange(range)
-
-      const request = buildLogRequest(from, to, {}, config.logging.maxLogsPerPage)
-      const response = await fetchLogs(request, selected, config)
-      setLogData(response)
-
-      navigate('/viewer')
+      if (codes.length > 5) {
+        // слишком много кодов — ждём выбора пользователя
+        setSelectedProjectCodes([])
+        navigate('/viewer')
+      } else {
+        setSelectedProjectCodes(codes)
+        const projectCodeFilter = codes.length > 0
+          ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: codes }]
+          : []
+        const request = buildLogRequest(from, to, { filters: projectCodeFilter }, config.logging.maxLogsPerPage)
+        const response = await fetchLogs(request, selected, config)
+        setLogData(response)
+        navigate('/viewer')
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setLoginError(`Ошибка API ${err.status}: ${err.message}`)
