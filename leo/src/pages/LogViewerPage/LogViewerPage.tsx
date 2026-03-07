@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
-import { fetchLogs, buildLogRequest, getFilterFields, fetchFieldTopValues } from '@/api/endpoints'
+import { fetchLogs, buildLogRequest, getFilterFields, fetchFieldTopValues, fetchQuickFilterStat } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
 import TopBar, { PRESET_LABELS } from '@/components/TopBar/TopBar'
 import Histogram from '@/components/Histogram/Histogram'
@@ -10,7 +10,7 @@ import Sidebar from '@/components/Sidebar/Sidebar'
 import LogTable from '@/components/LogTable/LogTable'
 import FilterBar from '@/components/FilterBar/FilterBar'
 import FilterBuilder from '@/components/FilterBuilder/FilterBuilder'
-import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse } from '@/types/api'
+import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse, FieldValuesBucket } from '@/types/api'
 
 export default function LogViewerPage() {
   const {
@@ -356,6 +356,34 @@ export default function LogViewerPage() {
     if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, newFilters)
   }
 
+  async function handleFetchFilterValues(fieldName: string): Promise<FieldValuesBucket[]> {
+    if (!currentUser || !config || !timeRange) return []
+    const luceneFilter = luceneQuery.trim()
+      ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
+      : []
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    try {
+      const response = await fetchQuickFilterStat(
+        {
+          queryAttributes: {
+            startTime: timeRange.from.toISOString(),
+            endTime:   timeRange.to.toISOString(),
+          },
+          statAttributes: { fieldName, limit: 50 },
+          filters: [...filters, ...luceneFilter, ...projectCodeFilter],
+          isCHRequest: dataSource === 'clickhouse',
+        },
+        currentUser, config,
+      )
+      return response.buckets ?? []
+    } catch {
+      return []
+    }
+  }
+
   function handleRemoveFilter(index: number) {
     const newFilters = filters.filter((_, i) => i !== index)
     removeFilter(index)
@@ -433,6 +461,7 @@ export default function LogViewerPage() {
           addFilter(filter)
           if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, newFilters)
         }}
+        onFetchFieldValues={timeRange ? handleFetchFilterValues : undefined}
       />
 
       <FilterBar

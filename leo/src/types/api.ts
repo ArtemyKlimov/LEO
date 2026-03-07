@@ -67,6 +67,13 @@ export type FilterOperator =
   | 'IS NOT ONE OF'
   | 'EXIST'
   | 'DOES NOT EXIST'
+  | 'CONTAINS'
+  | 'NOT CONTAINS'
+  | '>'
+  | '<'
+  | '>='
+  | '<='
+  | '=='
 
 export interface OpenSearchFilter {
   attributeName: string
@@ -128,7 +135,14 @@ export interface OpenSearchResponse {
 
 // ─── UI Fields ───────────────────────────────────────────────────────────────
 
-export type FieldControlType = 'select' | 'datetime' | 'text'
+export type FieldControlType = 'select' | 'datetime' | 'text' | 'longText' | 'id' | 'hidden' | 'int'
+
+export interface QuickFilterStatRequest {
+  queryAttributes: LogQueryRequest
+  statAttributes: { fieldName: string; limit: number }
+  filters?: OpenSearchFilter[]
+  isCHRequest?: boolean
+}
 
 export interface Field {
   name?: string

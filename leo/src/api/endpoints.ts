@@ -7,6 +7,7 @@ import type {
   FormData as FieldsFormData,
   FieldValuesRequest,
   FieldValuesResponse,
+  QuickFilterStatRequest,
   UserData,
 } from '@/types/api'
 
@@ -69,6 +70,23 @@ export async function fetchFieldTopValues(
   return apiFetch<FieldValuesResponse>('/api/v1/elasticsearch/field-values', user, config, {
     method: 'POST',
     body,
+  })
+}
+
+// ─── Quick filter stat ────────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/elasticsearch/quick-filter-stat
+ * Топ-N значений поля для подсказок в FilterBuilder.
+ */
+export async function fetchQuickFilterStat(
+  request: QuickFilterStatRequest,
+  user: UserConfig,
+  config: AppConfig,
+): Promise<FieldValuesResponse> {
+  return apiFetch<FieldValuesResponse>('/api/v1/elasticsearch/quick-filter-stat', user, config, {
+    method: 'POST',
+    body: request,
   })
 }
 
