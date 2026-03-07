@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import type { AppConfig, UserConfig } from '@/types/config'
 import type { OpenSearchFilter, LogEntry, HistogramBucket, Cursor, OpenSearchResponse } from '@/types/api'
 import type { DataSource } from '@/components/TopBar/DataSourceToggle'
+import { flattenLog } from '@/utils/flattenLog'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -140,14 +141,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setError = useCallback((err: string | null) => setErrorState(err), [])
 
   const setLogData = useCallback((response: OpenSearchResponse) => {
-    setLogs(response.payload ?? [])
+    setLogs((response.payload ?? []).map(log => flattenLog(log as Record<string, unknown>)))
     setHistogramBuckets(response.dateHistogram?.buckets ?? [])
     setTotalCount(Number(response.summary?.totalCount ?? 0))
     setCursor(response.cursor ?? null)
   }, [])
 
   const appendLogs = useCallback((response: OpenSearchResponse) => {
-    const incoming = response.payload ?? []
+    const incoming = (response.payload ?? []).map(log => flattenLog(log as Record<string, unknown>))
     setLogs((prev) => {
       const existingIds = new Set(prev.map(l => l._id))
       const newLogs = incoming.filter(l => !existingIds.has(l._id))
