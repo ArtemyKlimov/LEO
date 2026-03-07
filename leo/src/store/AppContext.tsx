@@ -55,6 +55,7 @@ export interface AppActions {
   setLogData: (response: OpenSearchResponse) => void
   appendLogs: (response: OpenSearchResponse) => void
   resetLogData: () => void
+  updateHistogram: (response: OpenSearchResponse) => void
   // Project codes
   setAvailableProjectCodes: (codes: string[]) => void
   setSelectedProjectCodes: (codes: string[]) => void
@@ -165,6 +166,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCursor(null)
   }, [])
 
+  const updateHistogram = useCallback((response: OpenSearchResponse) => {
+    const newBuckets = response.dateHistogram?.buckets
+    if (newBuckets && newBuckets.length > 0) {
+      setHistogramBuckets(newBuckets)
+    }
+    // Если бэкенд не вернул histogram (или пустой) — сохраняем существующие бакеты
+  }, [])
+
   const setAvailableProjectCodes = useCallback((codes: string[]) => setAvailableProjectCodesState(codes), [])
   const setSelectedProjectCodes = useCallback((codes: string[]) => setSelectedProjectCodesState(codes), [])
 
@@ -215,6 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLogData,
     appendLogs,
     resetLogData,
+    updateHistogram,
     availableProjectCodes,
     selectedProjectCodes,
     setAvailableProjectCodes,

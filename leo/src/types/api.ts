@@ -96,14 +96,22 @@ export interface LogQueryPageableRequest {
   pageAttributes: OpenSearchAttributes
   filters?: OpenSearchFilter[]
   isCHRequest?: boolean
+  statAttributes?: { fieldName: string; limit: number }
+  needPayload?: boolean
 }
 
 // ─── Response ────────────────────────────────────────────────────────────────
+
+export interface AggregatedItems {
+  value: string
+  docCount: number
+}
 
 export interface HistogramBucket {
   docCount: number
   key: number
   keyAsString: string
+  parts?: AggregatedItems[]
 }
 
 export interface DateHistogram {

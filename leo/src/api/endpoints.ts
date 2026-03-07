@@ -98,6 +98,8 @@ export function buildLogRequest(
     filters?: LogQueryPageableRequest['filters']
     pageAttributes?: Partial<OpenSearchAttributes>
     isCHRequest?: boolean
+    statAttributes?: { fieldName: string; limit: number }
+    needPayload?: boolean
   } = {},
   maxLogs = 100,
 ): LogQueryPageableRequest {
@@ -114,5 +116,7 @@ export function buildLogRequest(
     },
     filters: overrides.filters ?? [],
     isCHRequest: overrides.isCHRequest ?? false,
+    ...(overrides.statAttributes && { statAttributes: overrides.statAttributes }),
+    ...(overrides.needPayload !== undefined && { needPayload: overrides.needPayload }),
   }
 }

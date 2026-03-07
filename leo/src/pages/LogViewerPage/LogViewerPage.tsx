@@ -19,7 +19,7 @@ export default function LogViewerPage() {
     cursor, dataSource, totalCount,
     availableProjectCodes, selectedProjectCodes, setSelectedProjectCodes,
     logout, setTheme, setTimeRange, setLuceneQuery, setDataSource,
-    setLogData, appendLogs, setLoading, setError, isLoading,
+    setLogData, appendLogs, updateHistogram, setLoading, setError, isLoading,
     addFilter, removeFilter, clearFilters, pinField, unpinField,
   } = useApp()
   const navigate = useNavigate()
@@ -32,6 +32,7 @@ export default function LogViewerPage() {
   const [activePresetMinutes, setActivePresetMinutes] = useState<number | null>(15)
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [activeBreakdown, setActiveBreakdown] = useState<'level' | 'appName' | null>(null)
 
   // ─── UI fields (sidebar) ─────────────────────────────────────────────────────
 
@@ -120,6 +121,7 @@ export default function LogViewerPage() {
           filters: [...activeFilters, ...luceneFilter, ...projectCodeFilter],
           pageAttributes: { dateHistogramInterval: histInterval },
           isCHRequest: isCH,
+          ...(activeBreakdown && { statAttributes: { fieldName: activeBreakdown, limit: 9 }, needPayload: true }),
         },
         config.logging.maxLogsPerPage,
       )
@@ -129,7 +131,7 @@ export default function LogViewerPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, setLoading, setError, setLogData])
+  }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, activeBreakdown, setLoading, setError, setLogData])
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
 
@@ -237,6 +239,50 @@ export default function LogViewerPage() {
     setHistogramInterval(newInterval)
     if (!timeRange) return
     doFetch(timeRange.from, timeRange.to, luceneQuery, newInterval)
+  }
+
+  async function handleBreakdownChange(newField: 'level' | 'appName' | null) {
+    setActiveBreakdown(newField)
+    if (!timeRange || !currentUser || !config) return
+    const luceneFilter = luceneQuery.trim()
+      ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
+      : []
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const allFilters = [...filters, ...luceneFilter, ...projectCodeFilter]
+    const baseOverrides = {
+      filters: allFilters,
+      pageAttributes: { dateHistogramInterval: histogramInterval },
+      isCHRequest: dataSource === 'clickhouse',
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      if (newField === null) {
+        // Деактивация: обычный запрос, логи + plain histogram
+        setLogData(await fetchLogs(
+          buildLogRequest(timeRange.from, timeRange.to, baseOverrides, config.logging.maxLogsPerPage),
+          currentUser, config,
+        ))
+      } else {
+        // Активация: только histogram с parts, логи не трогаем
+        updateHistogram(await fetchLogs(
+          buildLogRequest(
+            timeRange.from, timeRange.to,
+            { ...baseOverrides, statAttributes: { fieldName: newField, limit: 9 }, needPayload: false },
+            config.logging.maxLogsPerPage,
+          ),
+          currentUser, config,
+        ))
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? `Ошибка API ${err.status}: ${err.message}` : String(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
   function handleBucketClick(bucket: HistogramBucket, bucketDurationMs: number) {
@@ -372,7 +418,9 @@ export default function LogViewerPage() {
         buckets={histogramBuckets}
         totalCount={totalCount}
         interval={histogramInterval}
+        breakdown={activeBreakdown}
         onIntervalChange={handleIntervalChange}
+        onBreakdownChange={handleBreakdownChange}
         onBucketClick={handleBucketClick}
         onRangeSelect={handleRangeSelect}
       />
