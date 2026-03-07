@@ -2,15 +2,16 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
-import { fetchLogs, buildLogRequest, getFilterFields, fetchFieldTopValues, fetchQuickFilterStat } from '@/api/endpoints'
+import { fetchLogs, buildLogRequest, getFilterFields, fetchFieldTopValues, fetchQuickFilterStat, fetchSavedSearches, createSavedSearch, deleteSavedSearch } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
+import { buildSavedSearchFilters } from '@/components/TopBar/SavedSearchesPanel'
 import TopBar, { PRESET_LABELS } from '@/components/TopBar/TopBar'
 import Histogram from '@/components/Histogram/Histogram'
 import Sidebar from '@/components/Sidebar/Sidebar'
 import LogTable from '@/components/LogTable/LogTable'
 import FilterBar from '@/components/FilterBar/FilterBar'
 import FilterBuilder from '@/components/FilterBuilder/FilterBuilder'
-import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse, FieldValuesBucket } from '@/types/api'
+import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse, FieldValuesBucket, SavedSearchItemGetResult } from '@/types/api'
 
 export default function LogViewerPage() {
   const {
@@ -20,7 +21,7 @@ export default function LogViewerPage() {
     availableProjectCodes, selectedProjectCodes, setSelectedProjectCodes,
     logout, setTheme, setTimeRange, setLuceneQuery, setDataSource,
     setLogData, appendLogs, updateHistogram, setLoading, setError, isLoading,
-    addFilter, removeFilter, clearFilters, pinField, unpinField,
+    addFilter, removeFilter, clearFilters, pinField, unpinField, setPinnedFields,
   } = useApp()
   const navigate = useNavigate()
 
@@ -28,6 +29,9 @@ export default function LogViewerPage() {
 
   // Нужен выбор projectCode: кодов > 5 и ни один не выбран
   const needsProjectSelection = availableProjectCodes.length > 5 && selectedProjectCodes.length === 0
+
+  const [savedSearches, setSavedSearches] = useState<SavedSearchItemGetResult[]>([])
+  const [activeSearchName, setActiveSearchName] = useState<string | null>(null)
 
   const [activePresetMinutes, setActivePresetMinutes] = useState<number | null>(15)
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
@@ -132,6 +136,44 @@ export default function LogViewerPage() {
       setLoading(false)
     }
   }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, activeBreakdown, setLoading, setError, setLogData])
+
+  // ─── Saved searches ──────────────────────────────────────────────────────────
+
+  const loadSavedSearches = useCallback(async () => {
+    if (!currentUser || !config) return
+    try {
+      const result = await fetchSavedSearches(currentUser, config)
+      setSavedSearches(result.savedSearchItems ?? [])
+    } catch { /* silent — endpoint may be unavailable */ }
+  }, [currentUser, config])
+
+  useEffect(() => {
+    loadSavedSearches()
+  }, [loadSavedSearches])
+
+  async function handleSaveSearch(name: string, onlyMy: boolean) {
+    if (!currentUser || !config) return
+    const apiFilters = buildSavedSearchFilters(filters, pinnedFields)
+    await createSavedSearch({ name, onlyMy, filters: apiFilters }, currentUser, config)
+    setActiveSearchName(name)
+    await loadSavedSearches()
+  }
+
+  function handleLoadSearch(loadedFilters: OpenSearchFilter[], loadedPinnedFields: string[]) {
+    clearFilters()
+    loadedFilters.forEach(addFilter)
+    setPinnedFields(loadedPinnedFields)
+    if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, loadedFilters)
+  }
+
+  async function handleDeleteSearch(id: string) {
+    if (!currentUser || !config) return
+    await deleteSavedSearch([id], currentUser, config)
+    if (savedSearches.find(s => s.id === id)?.name === activeSearchName) {
+      setActiveSearchName(null)
+    }
+    await loadSavedSearches()
+  }
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
 
@@ -415,6 +457,10 @@ export default function LogViewerPage() {
         availableProjectCodes={availableProjectCodes}
         selectedProjectCodes={selectedProjectCodes}
         highlightProjectCodes={needsProjectSelection}
+        savedSearches={savedSearches}
+        activeSearchName={activeSearchName}
+        currentFilters={filters}
+        currentPinnedFields={pinnedFields}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
@@ -424,6 +470,9 @@ export default function LogViewerPage() {
         onLogout={handleLogout}
         onDataSourceChange={handleDataSourceChange}
         onProjectCodesChange={handleProjectCodesChange}
+        onSaveSearch={handleSaveSearch}
+        onLoadSearch={handleLoadSearch}
+        onDeleteSearch={handleDeleteSearch}
       />
 
       {needsProjectSelection ? (

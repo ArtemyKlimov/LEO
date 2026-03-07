@@ -88,6 +88,14 @@ function IconPin({ cls }: { cls: string }) {
   )
 }
 
+function IconX({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
 // ─── ResizeHandle ─────────────────────────────────────────────────────────────
 
 function ResizeHandle({ onResize, dark }: { onResize: (delta: number) => void; dark: boolean }) {
@@ -542,12 +550,25 @@ export default function LogTable({
         {/* Level header */}
         {hasLevel && (
           <div
-            className="relative flex-shrink-0 text-center"
+            className="group relative flex-shrink-0"
             style={{ width: getColWidth(colWidths, 'level') + 'px' }}
           >
-            <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+            <span className={`text-xs font-semibold uppercase tracking-wide block pr-5 ${headerText}`}>
               Уровень
             </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin('level') }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
             <ResizeHandle onResize={d => resizeCol('level', d)} dark={dark} />
           </div>
         )}
@@ -555,12 +576,25 @@ export default function LogTable({
         {/* AppName header */}
         {hasAppName && (
           <div
-            className="relative flex-shrink-0"
+            className="group relative flex-shrink-0"
             style={{ width: getColWidth(colWidths, 'appName') + 'px' }}
           >
-            <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+            <span className={`text-xs font-semibold uppercase tracking-wide block pr-5 ${headerText}`}>
               Приложение
             </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin('appName') }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
             <ResizeHandle onResize={d => resizeCol('appName', d)} dark={dark} />
           </div>
         )}
@@ -569,24 +603,52 @@ export default function LogTable({
         {customPinned.map(field => (
           <div
             key={field}
-            className="relative flex-shrink-0"
+            className="group relative flex-shrink-0"
             style={{ width: getColWidth(colWidths, field) + 'px' }}
           >
             <span
-              className={`text-xs font-semibold uppercase tracking-wide truncate block ${headerText}`}
+              className={`text-xs font-semibold uppercase tracking-wide truncate block pr-5 ${headerText}`}
               title={field}
             >
               {field}
             </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin(field) }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
             <ResizeHandle onResize={d => resizeCol(field, d)} dark={dark} />
           </div>
         ))}
 
         {/* Message header — flex-1, no resize handle needed */}
         {hasText && (
-          <span className={`text-xs font-semibold uppercase tracking-wide flex-1 ${headerText}`}>
-            Сообщение
-          </span>
+          <div className="group relative flex-1 min-w-0">
+            <span className={`text-xs font-semibold uppercase tracking-wide block pr-5 ${headerText}`}>
+              Сообщение
+            </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin('text') }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
+          </div>
         )}
       </div>
 

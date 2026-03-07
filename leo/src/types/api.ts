@@ -158,6 +158,48 @@ export interface FormData {
   props?: Record<string, Field[]>
 }
 
+// ─── Saved Searches ───────────────────────────────────────────────────────────
+
+export interface SavedSearchFilter {
+  attributeName: string
+  attributeValue: string[]
+  filterOperator?: FilterOperator
+  attributeVisibility?: boolean
+}
+
+export interface NewSavedSearchRequest {
+  name: string
+  onlyMy?: boolean
+  queryAttributes?: { startTime?: string; endTime?: string }
+  filters: SavedSearchFilter[]
+}
+
+export interface SavedSearchItemGetResult {
+  id: string
+  name: string
+  version: number
+  seqNo: number
+  primaryTerm: number
+  author?: string
+  onlyMy: boolean
+  apply: boolean
+  share: boolean
+  delete: boolean
+  storageType: string
+  filters: SavedSearchFilter[]
+}
+
+export interface SavedSearchGetResult {
+  savedSearchItems: SavedSearchItemGetResult[]
+}
+
+export interface SavedSearchCreateResult {
+  id: string
+  version: number
+  seqNo: number
+  primaryTerm: number
+}
+
 // ─── Field top values ────────────────────────────────────────────────────────
 
 export interface FieldValuesRequest {

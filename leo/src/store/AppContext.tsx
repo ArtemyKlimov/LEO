@@ -48,6 +48,7 @@ export interface AppActions {
   setLuceneQuery: (query: string) => void
   pinField: (field: string) => void
   unpinField: (field: string) => void
+  setPinnedFields: (fields: string[]) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   logout: () => void
@@ -137,6 +138,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPinnedFields((prev) => prev.filter((f) => f !== field))
   }, [])
 
+  const setPinnedFieldsBatch = useCallback((fields: string[]) => {
+    setPinnedFields(fields)
+  }, [])
+
   const setLoading = useCallback((loading: boolean) => setIsLoading(loading), [])
 
   const setError = useCallback((err: string | null) => setErrorState(err), [])
@@ -218,6 +223,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLuceneQuery,
     pinField,
     unpinField,
+    setPinnedFields: setPinnedFieldsBatch,
     setLoading,
     setError,
     logout,

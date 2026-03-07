@@ -9,6 +9,9 @@ import type {
   FieldValuesResponse,
   QuickFilterStatRequest,
   UserData,
+  NewSavedSearchRequest,
+  SavedSearchGetResult,
+  SavedSearchCreateResult,
 } from '@/types/api'
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
@@ -102,6 +105,47 @@ export async function fetchProjectCodes(
 ): Promise<string[]> {
   const data = await getUserData(user, config)
   return data.infoSystemCodes ?? []
+}
+
+// ─── Saved Searches ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/hot/saved-searches
+ * Список сохранённых поисков, видимых текущему пользователю.
+ */
+export async function fetchSavedSearches(
+  user: UserConfig,
+  config: AppConfig,
+): Promise<SavedSearchGetResult> {
+  return apiFetch<SavedSearchGetResult>('/api/v1/hot/saved-searches', user, config)
+}
+
+/**
+ * POST /api/v1/hot/saved-searches
+ * Создать новый сохранённый поиск.
+ */
+export async function createSavedSearch(
+  request: NewSavedSearchRequest,
+  user: UserConfig,
+  config: AppConfig,
+): Promise<SavedSearchCreateResult> {
+  return apiFetch<SavedSearchCreateResult>('/api/v1/hot/saved-searches', user, config, {
+    method: 'POST', body: request,
+  })
+}
+
+/**
+ * DELETE /api/v1/hot/saved-searches
+ * Удалить по массиву ID.
+ */
+export async function deleteSavedSearch(
+  ids: string[],
+  user: UserConfig,
+  config: AppConfig,
+): Promise<void> {
+  await apiFetch<void>('/api/v1/hot/saved-searches', user, config, {
+    method: 'DELETE', body: ids,
+  })
 }
 
 // ─── Request builder helpers ──────────────────────────────────────────────────
