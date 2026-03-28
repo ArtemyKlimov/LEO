@@ -51,12 +51,16 @@ export default function LogViewerPage() {
 
   useEffect(() => {
     if (!currentUser || !config) return
+    // Ждём определения кодов: если кодов > 5 — нужен явный выбор пользователя
+    if (availableProjectCodes.length > 5 && selectedProjectCodes.length === 0) return
+    const ac = new AbortController()
     setFieldsLoading(true)
-    getFilterFields(currentUser, config)
-      .then(data => setApiFields(data.fields ?? []))
+    getFilterFields(currentUser, config, selectedProjectCodes, ac.signal)
+      .then(data => { if (!ac.signal.aborted) setApiFields(data.fields ?? []) })
       .catch(() => {/* endpoint недоступен — используем fallback из логов */})
-      .finally(() => setFieldsLoading(false))
-  }, [currentUser, config])
+      .finally(() => { if (!ac.signal.aborted) setFieldsLoading(false) })
+    return () => ac.abort()
+  }, [currentUser, config, selectedProjectCodes, availableProjectCodes])
 
   // Частота полей: доля логов, в которых поле присутствует и не пустое
   const fieldFrequency = useMemo<Record<string, number>>(() => {
@@ -153,8 +157,13 @@ export default function LogViewerPage() {
   }, [currentUser, config])
 
   useEffect(() => {
-    loadSavedSearches()
-  }, [loadSavedSearches])
+    if (!currentUser || !config) return
+    const ac = new AbortController()
+    fetchSavedSearches(currentUser, config, ac.signal)
+      .then(result => { if (!ac.signal.aborted) setSavedSearches(result.savedSearchItems ?? []) })
+      .catch(() => {})
+    return () => ac.abort()
+  }, [currentUser, config])
 
   async function handleSaveSearch(name: string, onlyMy: boolean) {
     if (!currentUser || !config) return
@@ -333,11 +342,26 @@ export default function LogViewerPage() {
 
   // ─── Sidebar handlers ────────────────────────────────────────────────────────
 
-  async function handleFetchTopValues(fieldName: string): Promise<FieldValuesResponse> {
+  function handleGetLocalTopValues(fieldName: string): FieldValuesBucket[] {
+    const counts: Record<string, number> = {}
+    for (const log of logs) {
+      const val = log[fieldName]
+      if (val != null && val !== '') {
+        const key = String(val)
+        counts[key] = (counts[key] ?? 0) + 1
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([value, docCount]) => ({ value, docCount }))
+  }
+
+  const handleFetchTopValues = useCallback(async (fieldName: string): Promise<FieldValuesResponse> => {
     if (!currentUser || !config || !timeRange) throw new Error('Not ready')
     const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, filters)
-    return fetchTopValues(fieldName, 5, queryFilters, currentUser, config)
-  }
+    return fetchTopValues(fieldName, 10, queryFilters, currentUser, config)
+  }, [currentUser, config, timeRange, luceneQuery, filters, buildQueryFilters])
 
   function handleInclude(fieldName: string, value: string) {
     const filter: OpenSearchFilter = {
@@ -489,10 +513,12 @@ export default function LogViewerPage() {
           fieldFrequency={fieldFrequency}
           pinnedFields={pinnedFields}
           isLoading={fieldsLoading}
+          loadedLogsCount={logs.length}
           onInclude={handleInclude}
           onExclude={handleExclude}
           onPin={pinField}
           onUnpin={unpinField}
+          onGetLocalTopValues={handleGetLocalTopValues}
           onFetchTopValues={handleFetchTopValues}
         />
 

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type { Field, FieldValuesBucket, FieldValuesResponse } from '@/types/api'
+import ExploreFieldModal from './ExploreFieldModal'
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -45,10 +46,12 @@ interface Props {
   fieldFrequency: Record<string, number>   // fieldName → 0..1
   pinnedFields: string[]
   isLoading: boolean
+  loadedLogsCount: number
   onInclude: (fieldName: string, value: string) => void
   onExclude: (fieldName: string, value: string) => void
   onPin: (fieldName: string) => void
   onUnpin: (fieldName: string) => void
+  onGetLocalTopValues: (fieldName: string) => FieldValuesBucket[]
   onFetchTopValues: (fieldName: string) => Promise<FieldValuesResponse>
 }
 
@@ -60,61 +63,43 @@ type ActivePicker = { name: string; operator: 'IS' | 'IS NOT' } | null
 
 interface TopValuesPanelProps {
   dark: boolean
-  loading: boolean
-  error: string | null
-  buckets: FieldValuesBucket[] | null
+  buckets: FieldValuesBucket[]
   totalDocCount: number
   fieldName: string
+  loadedLogsCount: number
   anchorRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onInclude: (fieldName: string, value: string) => void
   onExclude: (fieldName: string, value: string) => void
+  onExplore: () => void
 }
 
 function TopValuesPanel({
-  dark, loading, error, buckets, totalDocCount, fieldName,
-  anchorRef, onClose, onInclude, onExclude,
+  dark, buckets, totalDocCount, fieldName, loadedLogsCount,
+  anchorRef, onClose, onInclude, onExclude, onExplore,
 }: TopValuesPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [style, setStyle] = useState<React.CSSProperties>({
-    position: 'fixed',
-    top: 0,
-    left: -9999,
-    zIndex: 1000,
+    position: 'fixed', top: 0, left: -9999, zIndex: 1000,
   })
 
-  // Calculate position relative to anchor element
   useEffect(() => {
     if (!anchorRef.current) return
     const rect = anchorRef.current.getBoundingClientRect()
     const panelWidth = 320
     const maxHeight = 400
     const vpH = window.innerHeight
-
     let top = rect.top
-    if (top + maxHeight > vpH - 8) {
-      top = Math.max(8, vpH - maxHeight - 8)
-    }
-
-    setStyle({
-      position: 'fixed',
-      top,
-      left: rect.right + 4,
-      width: panelWidth,
-      maxHeight,
-      zIndex: 1000,
-    })
+    if (top + maxHeight > vpH - 8) top = Math.max(8, vpH - maxHeight - 8)
+    setStyle({ position: 'fixed', top, left: rect.right + 4, width: panelWidth, maxHeight, zIndex: 1000 })
   }, [anchorRef])
 
-  // Close on click outside panel and anchor
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (
         panelRef.current && !panelRef.current.contains(e.target as Node) &&
         anchorRef.current && !anchorRef.current.contains(e.target as Node)
-      ) {
-        onClose()
-      }
+      ) onClose()
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -125,7 +110,10 @@ function TopValuesPanel({
   const headCls   = dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'
   const valCls    = dark ? 'text-slate-300'   : 'text-gray-700'
   const pctCls    = dark ? 'text-slate-500'   : 'text-gray-400'
+  const noticeCls = dark ? 'text-amber-400/80 border-slate-700 bg-slate-900/60' : 'text-amber-600/80 border-gray-100 bg-amber-50/40'
   const barClr    = dark ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.12)'
+
+  const maxCount = buckets.length > 0 ? Math.max(...buckets.map(b => b.docCount), 1) : 1
 
   return createPortal(
     <div
@@ -151,82 +139,88 @@ function TopValuesPanel({
         </button>
       </div>
 
-      {/* Body */}
-      <div className="overflow-y-auto">
-        {/* Loading */}
-        {loading && (
-          <div className="flex justify-center py-4">
-            <svg className={`w-4 h-4 animate-spin ${dark ? 'text-slate-500' : 'text-gray-400'}`} viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-          </div>
-        )}
-
-        {/* Error */}
-        {!loading && error && (
-          <p className="text-xs text-red-500 px-3 py-2">{error}</p>
-        )}
-
-        {/* Buckets */}
-        {!loading && !error && buckets && (
-          buckets.length === 0
-            ? <p className={`text-xs px-3 py-2 ${pctCls}`}>Нет данных</p>
-            : (() => {
-                const maxCount = Math.max(...buckets.map(b => b.docCount), 1)
-                return (
-                  <div className="py-1">
-                    {buckets.map(bucket => {
-                      const barW = (bucket.docCount / maxCount) * 100
-                      const pct  = totalDocCount > 0 ? Math.round(bucket.docCount / totalDocCount * 100) : 0
-                      return (
+      {/* Buckets */}
+      <div className="overflow-y-auto flex-1">
+        {buckets.length === 0
+          ? <p className={`text-xs px-3 py-2 ${pctCls}`}>Нет данных в загруженных записях</p>
+          : (() => {
+              return (
+                <div className="py-1">
+                  {buckets.map(bucket => {
+                    const barW = (bucket.docCount / maxCount) * 100
+                    const pct  = totalDocCount > 0 ? Math.round(bucket.docCount / totalDocCount * 100) : 0
+                    return (
+                      <div
+                        key={bucket.value}
+                        className={`relative px-3 py-1.5 ${dark ? 'hover:bg-slate-700/50' : 'hover:bg-gray-50'}`}
+                      >
                         <div
-                          key={bucket.value}
-                          className={`relative px-3 py-1.5 ${dark ? 'hover:bg-slate-700/50' : 'hover:bg-gray-50'}`}
-                        >
-                          {/* Bar background */}
-                          <div
-                            className="absolute left-0 top-0 bottom-0"
-                            style={{ width: barW + '%', backgroundColor: barClr }}
-                          />
-                          {/* Content */}
-                          <div className="relative flex items-start gap-2">
-                            <span className={`flex-1 min-w-0 text-xs break-all leading-normal ${valCls}`}>
-                              {bucket.value || <em className={pctCls}>(пусто)</em>}
-                            </span>
-                            <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
-                              <span className={`text-xs tabular-nums w-8 text-right ${pctCls}`}>{pct}%</span>
-                              <button
-                                onClick={() => onInclude(fieldName, bucket.value)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                  dark
-                                    ? 'text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/20'
-                                    : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
-                                }`}
-                                title={`Включить: ${bucket.value}`}
-                              >
-                                <IconPlus cls="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => onExclude(fieldName, bucket.value)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                  dark
-                                    ? 'text-slate-500 hover:text-red-400 hover:bg-red-500/20'
-                                    : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                                }`}
-                                title={`Исключить: ${bucket.value}`}
-                              >
-                                <IconMinus cls="w-3 h-3" />
-                              </button>
-                            </div>
+                          className="absolute left-0 top-0 bottom-0"
+                          style={{ width: barW + '%', backgroundColor: barClr }}
+                        />
+                        <div className="relative flex items-start gap-2">
+                          <span className={`flex-1 min-w-0 text-xs break-all leading-normal ${valCls}`}>
+                            {bucket.value || <em className={pctCls}>(пусто)</em>}
+                          </span>
+                          <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                            <span className={`text-xs tabular-nums w-8 text-right ${pctCls}`}>{pct}%</span>
+                            <button
+                              onClick={() => onInclude(fieldName, bucket.value)}
+                              className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                dark
+                                  ? 'text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
+                              }`}
+                              title={`Включить: ${bucket.value}`}
+                            >
+                              <IconPlus cls="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => onExclude(fieldName, bucket.value)}
+                              className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                dark
+                                  ? 'text-slate-500 hover:text-red-400 hover:bg-red-500/20'
+                                  : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                              }`}
+                              title={`Исключить: ${bucket.value}`}
+                            >
+                              <IconMinus cls="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()
+        }
+      </div>
+
+      {/* Footer: disclaimer + Explore button */}
+      <div className={`flex-shrink-0 border-t ${borderCls}`}>
+        {loadedLogsCount > 0 && (
+          <div className={`px-3 py-1.5 text-xs border-b flex items-center gap-1.5 ${noticeCls}`}>
+            <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            Данные из ~{loadedLogsCount.toLocaleString('ru-RU')} записей
+          </div>
         )}
+        <button
+          onClick={onExplore}
+          className={`w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors cursor-pointer ${
+            dark
+              ? 'bg-blue-600 hover:bg-blue-500 text-white'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          <IconSearch cls="w-3.5 h-3.5" />
+          Исследовать
+          <svg className="w-3 h-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </div>
     </div>,
     document.body,
@@ -237,37 +231,45 @@ function TopValuesPanel({
 
 interface FieldItemProps {
   field: Field
-  freq: number   // 0..1
+  freq: number
   pinned: boolean
   dark: boolean
   active: ActivePicker
+  loadedLogsCount: number
   onActivate: (name: string, op: 'IS' | 'IS NOT') => void
   onClose: () => void
   onInclude: (name: string, value: string) => void
   onExclude: (name: string, value: string) => void
   onPin: (name: string) => void
   onUnpin: (name: string) => void
+  onGetLocalTopValues: (fieldName: string) => FieldValuesBucket[]
   onFetchTopValues: (fieldName: string) => Promise<FieldValuesResponse>
 }
 
 function FieldItem({
-  field, freq, pinned, dark, active,
-  onActivate, onClose, onInclude, onExclude, onPin, onUnpin, onFetchTopValues,
+  field, freq, pinned, dark, active, loadedLogsCount,
+  onActivate, onClose, onInclude, onExclude, onPin, onUnpin,
+  onGetLocalTopValues, onFetchTopValues,
 }: FieldItemProps) {
-  const name = field.name ?? ''
+  const name     = field.name ?? ''
   const isActive = active?.name === name
-  const pct = Math.round(freq * 100)
+  const pct      = Math.round(freq * 100)
 
   const [inputVal, setInputVal] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const rowRef   = useRef<HTMLDivElement>(null)
 
-  // Top values state
+  // Local top-values panel
   const [tvOpen,    setTvOpen]    = useState(false)
-  const [tvLoading, setTvLoading] = useState(false)
-  const [tvError,   setTvError]   = useState<string | null>(null)
-  const [tvBuckets, setTvBuckets] = useState<FieldValuesBucket[] | null>(null)
+  const [tvBuckets, setTvBuckets] = useState<FieldValuesBucket[]>([])
   const [tvTotal,   setTvTotal]   = useState(0)
+
+  // Full explore modal
+  const [exploreOpen,    setExploreOpen]    = useState(false)
+  const [exploreLoading, setExploreLoading] = useState(false)
+  const [exploreError,   setExploreError]   = useState<string | null>(null)
+  const [exploreBuckets, setExploreBuckets] = useState<FieldValuesBucket[]>([])
+  const [exploreTotal,   setExploreTotal]   = useState(0)
 
   useEffect(() => {
     if (isActive) {
@@ -283,31 +285,39 @@ function FieldItem({
     onClose()
   }
 
-  async function handleMagnifier() {
+  function handleMagnifier() {
     if (tvOpen) {
       setTvOpen(false)
       return
     }
-    // Close the IS/IS NOT picker if it's open
     if (isActive) onClose()
+    // Compute top values from already loaded logs — synchronous, no backend call
+    const buckets = onGetLocalTopValues(name)
+    setTvBuckets(buckets)
+    setTvTotal(loadedLogsCount)
     setTvOpen(true)
-    setTvLoading(true)
-    setTvError(null)
-    setTvBuckets(null)
-    try {
-      const res = await onFetchTopValues(name)
-      setTvBuckets(res.buckets)
-      setTvTotal(res.totalDocCount)
-    } catch {
-      setTvError('Не удалось загрузить данные')
-    } finally {
-      setTvLoading(false)
-    }
   }
 
   function handleActivate(n: string, op: 'IS' | 'IS NOT') {
-    setTvOpen(false)  // close top values if open
+    setTvOpen(false)
     onActivate(n, op)
+  }
+
+  async function handleExplore() {
+    setExploreBuckets([])
+    setExploreTotal(0)
+    setExploreError(null)
+    setExploreLoading(true)
+    setExploreOpen(true)
+    try {
+      const res = await onFetchTopValues(name)
+      setExploreBuckets(res.buckets ?? [])
+      setExploreTotal(res.buckets?.reduce((s, b) => s + b.docCount, 0) ?? 0)
+    } catch (e) {
+      setExploreError(e instanceof Error ? e.message : 'Ошибка загрузки')
+    } finally {
+      setExploreLoading(false)
+    }
   }
 
   const rowBg  = dark ? 'hover:bg-slate-800' : 'hover:bg-gray-50'
@@ -324,7 +334,6 @@ function FieldItem({
     <div ref={rowRef} className={`group ${rowBg} transition-colors`}>
       {/* Field row */}
       <div className="relative flex items-center gap-1 px-3 py-1.5 cursor-default">
-        {/* Frequency bar background */}
         {freq > 0 && (
           <div
             className={`absolute left-0 top-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none ${dark ? 'bg-blue-900/30' : 'bg-blue-50'}`}
@@ -332,7 +341,6 @@ function FieldItem({
           />
         )}
 
-        {/* Field name */}
         <span
           className={`flex-1 min-w-0 text-xs truncate relative z-10 ${dark ? 'text-slate-300' : 'text-gray-700'}`}
           title={field.description ?? name}
@@ -340,14 +348,12 @@ function FieldItem({
           {name}
         </span>
 
-        {/* Frequency % — visible on hover */}
         {freq > 0 && (
           <span className={`text-xs tabular-nums opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 relative z-10 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
             {pct}%
           </span>
         )}
 
-        {/* Action buttons — visible on hover */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 relative z-10">
           <button
             onClick={() => isActive && active?.operator === 'IS' ? onClose() : handleActivate(name, 'IS')}
@@ -370,7 +376,7 @@ function FieldItem({
                 ? 'text-blue-500'
                 : dark ? 'text-slate-600 hover:text-blue-400 hover:bg-slate-700' : 'text-gray-400 hover:text-blue-500 hover:bg-gray-100'
             }`}
-            title="Топ значений поля"
+            title="Топ значений (из загруженных записей)"
           >
             <IconSearch cls="w-3 h-3" />
           </button>
@@ -388,45 +394,53 @@ function FieldItem({
         </div>
       </div>
 
-      {/* Top values panel — portal overlay */}
+      {/* Local top-values panel */}
       {tvOpen && (
         <TopValuesPanel
           dark={dark}
-          loading={tvLoading}
-          error={tvError}
           buckets={tvBuckets}
           totalDocCount={tvTotal}
           fieldName={name}
+          loadedLogsCount={loadedLogsCount}
           anchorRef={rowRef}
           onClose={() => setTvOpen(false)}
+          onInclude={onInclude}
+          onExclude={onExclude}
+          onExplore={handleExplore}
+        />
+      )}
+
+      {/* Full explore modal */}
+      {exploreOpen && (
+        <ExploreFieldModal
+          dark={dark}
+          fieldName={name}
+          loading={exploreLoading}
+          error={exploreError}
+          buckets={exploreBuckets}
+          totalDocCount={exploreTotal}
+          onClose={() => setExploreOpen(false)}
           onInclude={onInclude}
           onExclude={onExclude}
         />
       )}
 
-      {/* Value picker — shown when active (IS / IS NOT filter) */}
+      {/* Value picker (IS / IS NOT) */}
       {isActive && (
         <div className={`mx-3 mb-2 rounded-lg border overflow-hidden ${dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
-          {/* Header */}
           <div className={`px-2 py-1 text-xs border-b ${dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'}`}>
             {active?.operator === 'IS' ? 'Включить' : 'Исключить'}: <span className="font-medium">{name}</span>
           </div>
 
-          {/* Options list */}
           {field.options && field.options.length > 0 ? (
             <div className="p-2 flex flex-wrap gap-1">
               {field.options.map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => submitValue(opt)}
-                  className={chipCls(false)}
-                >
+                <button key={opt} onClick={() => submitValue(opt)} className={chipCls(false)}>
                   {opt}
                 </button>
               ))}
             </div>
           ) : (
-            /* Free-text input */
             <div className="p-2 flex gap-1">
               <input
                 ref={inputRef}
@@ -462,12 +476,11 @@ function FieldItem({
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export default function Sidebar({
-  dark, fields, fieldFrequency, pinnedFields, isLoading,
-  onInclude, onExclude, onPin, onUnpin, onFetchTopValues,
+  dark, fields, fieldFrequency, pinnedFields, isLoading, loadedLogsCount,
+  onInclude, onExclude, onPin, onUnpin, onGetLocalTopValues, onFetchTopValues,
 }: Props) {
   const [activePicker, setActivePicker] = useState<ActivePicker>(null)
 
-  // Sort: pinned first, then by frequency desc, then alphabetically
   const sorted = useMemo(() => {
     return [...fields].sort((a, b) => {
       const an = a.name ?? '', bn = b.name ?? ''
@@ -481,7 +494,6 @@ export default function Sidebar({
     })
   }, [fields, fieldFrequency, pinnedFields])
 
-  // Close picker when clicking outside
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!activePicker) return
@@ -503,30 +515,23 @@ export default function Sidebar({
       ref={containerRef}
       className={`flex flex-col flex-shrink-0 w-52 border-r ${bgCls} ${borderCls} overflow-hidden`}
     >
-      {/* Header */}
       <div className={`flex items-center justify-between px-3 py-2 border-b ${borderCls} flex-shrink-0`}>
-        <span className={`text-xs font-semibold uppercase tracking-wide ${titleCls}`}>
-          Поля
-        </span>
+        <span className={`text-xs font-semibold uppercase tracking-wide ${titleCls}`}>Поля</span>
         {isLoading && (
           <svg className={`w-3 h-3 animate-spin ${dark ? 'text-slate-500' : 'text-gray-400'}`}
             viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10"
-              stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor"
-              d="M4 12a8 8 0 018-8v8z" />
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
           </svg>
         )}
       </div>
 
-      {/* Field count badge */}
       {sorted.length > 0 && (
         <div className={`px-3 py-1 text-xs border-b ${borderCls} ${dark ? 'text-slate-600' : 'text-gray-400'}`}>
           {sorted.length} {sorted.length === 1 ? 'поле' : sorted.length < 5 ? 'поля' : 'полей'}
         </div>
       )}
 
-      {/* Fields list */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 && !isLoading && (
           <p className={`px-3 py-4 text-xs text-center ${dark ? 'text-slate-600' : 'text-gray-400'}`}>
@@ -542,12 +547,14 @@ export default function Sidebar({
             pinned={pinnedFields.includes(field.name ?? '')}
             dark={dark}
             active={activePicker}
+            loadedLogsCount={loadedLogsCount}
             onActivate={(name, op) => setActivePicker({ name, operator: op })}
             onClose={() => setActivePicker(null)}
             onInclude={onInclude}
             onExclude={onExclude}
             onPin={onPin}
             onUnpin={onUnpin}
+            onGetLocalTopValues={onGetLocalTopValues}
             onFetchTopValues={onFetchTopValues}
           />
         ))}

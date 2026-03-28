@@ -111,8 +111,13 @@ export async function getUserData(
 export async function getFilterFields(
   user: UserConfig,
   config: AppConfig,
+  projectCodes: string[],
+  signal?: AbortSignal,
 ): Promise<FieldsFormData> {
-  return apiFetch<FieldsFormData>('/api/v2/ui/fields', user, config)
+  const params = projectCodes.length > 0
+    ? '?' + projectCodes.map(c => `projectCode=${encodeURIComponent(c)}`).join('&')
+    : ''
+  return apiFetch<FieldsFormData>(`/api/v2/ui/fields${params}`, user, config, { signal })
 }
 
 // ─── Project codes ────────────────────────────────────────────────────────────
@@ -138,8 +143,9 @@ export async function fetchProjectCodes(
 export async function fetchSavedSearches(
   user: UserConfig,
   config: AppConfig,
+  signal?: AbortSignal,
 ): Promise<SavedSearchGetResult> {
-  return apiFetch<SavedSearchGetResult>('/api/v2/hot/saved-searches', user, config)
+  return apiFetch<SavedSearchGetResult>('/api/v2/hot/saved-searches', user, config, { signal })
 }
 
 /**
