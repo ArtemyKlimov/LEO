@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import type { UserConfig } from '@/types/config'
 import type { TimeRange } from '@/store/AppContext'
 import DateRangePicker from '@/components/DateRangePicker/DateRangePicker'
-import DataSourceToggle, { type DataSource } from './DataSourceToggle'
 import ProjectCodePicker from '@/components/ProjectCodePicker/ProjectCodePicker'
 import SavedSearchesPanel from './SavedSearchesPanel'
 import type { OpenSearchFilter, SavedSearchItemGetResult } from '@/types/api'
@@ -113,7 +112,6 @@ interface Props {
   luceneQuery: string
   isLoading: boolean
   activePresetMinutes: number | null
-  dataSource: DataSource
   availableProjectCodes: string[]
   selectedProjectCodes: string[]
   highlightProjectCodes?: boolean
@@ -128,7 +126,6 @@ interface Props {
   onExport: (format: 'txt' | 'csv') => void
   onThemeToggle: () => void
   onLogout: () => void
-  onDataSourceChange: (source: DataSource) => void
   onProjectCodesChange: (codes: string[]) => void
   onSaveSearch: (name: string, onlyMy: boolean) => Promise<void>
   onLoadSearch: (filters: OpenSearchFilter[], pinnedFields: string[]) => void
@@ -144,7 +141,6 @@ export default function TopBar({
   luceneQuery,
   isLoading,
   activePresetMinutes,
-  dataSource,
   availableProjectCodes,
   selectedProjectCodes,
   highlightProjectCodes,
@@ -159,7 +155,6 @@ export default function TopBar({
   onExport,
   onThemeToggle,
   onLogout,
-  onDataSourceChange,
   onProjectCodesChange,
   onSaveSearch,
   onLoadSearch,
@@ -383,18 +378,6 @@ export default function TopBar({
             {divider}
           </>
         )}
-
-        {divider}
-
-        {/* Data source toggle: OpenSearch / ClickHouse */}
-        <DataSourceToggle
-          value={dataSource}
-          onChange={onDataSourceChange}
-          dark={dark}
-          disabled={isLoading}
-        />
-
-        {divider}
 
         {/* Theme toggle */}
         <button

@@ -1,4 +1,4 @@
-import { useState, useRef, KeyboardEvent } from 'react'
+import { useState, useRef, type KeyboardEvent } from 'react'
 import type { Field, FieldValuesBucket, FilterOperator, OpenSearchFilter } from '@/types/api'
 import DateTimePicker from './DateTimePicker'
 
@@ -217,7 +217,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
   }
 
   function handleSubmit() {
-    if (!isValid || operator === '') return
+    if (!isValid || !operator) return
     const filter: OpenSearchFilter = {
       attributeName: fieldName,
       filterOperator: operator as FilterOperator,

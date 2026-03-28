@@ -86,28 +86,31 @@ export interface LogQueryRequest {
   endTime: string
 }
 
-export interface OpenSearchOrder {
-  fieldCode: string
-  sorting: 'asc' | 'desc'
+// ─── v2 Request types ────────────────────────────────────────────────────────
+
+export interface SortAttributes {
+  order: 'asc' | 'desc'
+  fieldName: string
 }
 
-export interface OpenSearchAttributes {
+export interface LogQueryFilters {
+  luceneQuery?: string
+  mainTimeFilter: LogQueryRequest
+  fieldFilters?: OpenSearchFilter[]
+}
+
+export interface ClickHousePageAttributes {
   limit: number
   cursors?: Record<string, Cursor>
-  order?: OpenSearchOrder
-  dateHistogramInterval?: DateHistogramInterval
 }
 
 export interface LogQueryPageableRequest {
-  queryAttributes: LogQueryRequest
-  pageAttributes: OpenSearchAttributes
-  filters?: OpenSearchFilter[]
-  isCHRequest?: boolean
-  statAttributes?: { fieldName: string; limit: number }
-  needPayload?: boolean
+  sort: SortAttributes
+  filters: LogQueryFilters
+  pageAttributes: ClickHousePageAttributes
 }
 
-// ─── Response ────────────────────────────────────────────────────────────────
+// ─── v2 Response types ────────────────────────────────────────────────────────
 
 export interface AggregatedItems {
   value: string
@@ -121,28 +124,31 @@ export interface HistogramBucket {
   parts?: AggregatedItems[]
 }
 
-export interface DateHistogram {
-  interval?: string
-  buckets?: HistogramBucket[]
-}
-
-export interface OpenSearchResponse {
+export interface ClickHouseResponse {
   payload?: LogEntry[]
   cursor?: Record<string, Cursor>
-  summary?: Record<string, string>
-  dateHistogram?: DateHistogram
+}
+
+export interface ClickHouseAggregationRequest {
+  aggregationType: 'histogram' | 'top-n'
+  aggregationAttributes?: {
+    fieldName?: string
+    limit?: number
+    dateHistogramInterval?: DateHistogramInterval
+  }
+  filters: LogQueryFilters
+}
+
+export interface ClickHouseAggregationResponse {
+  aggregationResult?: {
+    interval?: string
+    buckets?: HistogramBucket[]
+  }
 }
 
 // ─── UI Fields ───────────────────────────────────────────────────────────────
 
 export type FieldControlType = 'select' | 'datetime' | 'text' | 'longText' | 'id' | 'hidden' | 'int'
-
-export interface QuickFilterStatRequest {
-  queryAttributes: LogQueryRequest
-  statAttributes: { fieldName: string; limit: number }
-  filters?: OpenSearchFilter[]
-  isCHRequest?: boolean
-}
 
 export interface Field {
   name?: string
@@ -200,15 +206,7 @@ export interface SavedSearchCreateResult {
   primaryTerm: number
 }
 
-// ─── Field top values ────────────────────────────────────────────────────────
-
-export interface FieldValuesRequest {
-  queryAttributes: LogQueryRequest
-  filters?: OpenSearchFilter[]
-  fieldName: string
-  limit?: number
-  isCHRequest?: boolean
-}
+// ─── Field top values (used internally by Sidebar / FilterBuilder) ────────────
 
 export interface FieldValuesBucket {
   value: string

@@ -47,7 +47,7 @@ export default function LoginPage() {
         const projectCodeFilter = codes.length > 0
           ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: codes }]
           : []
-        const request = buildLogRequest(from, to, { filters: projectCodeFilter }, config.logging.maxLogsPerPage)
+        const request = buildLogRequest(from, to, { fieldFilters: projectCodeFilter }, config.logging.maxLogsPerPage)
         const response = await fetchLogs(request, selected, config)
         setLogData(response)
         navigate('/viewer')

@@ -65,7 +65,7 @@ interface TopValuesPanelProps {
   buckets: FieldValuesBucket[] | null
   totalDocCount: number
   fieldName: string
-  anchorRef: React.RefObject<HTMLDivElement>
+  anchorRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onInclude: (fieldName: string, value: string) => void
   onExclude: (fieldName: string, value: string) => void

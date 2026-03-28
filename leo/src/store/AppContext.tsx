@@ -1,13 +1,11 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import type { AppConfig, UserConfig } from '@/types/config'
-import type { OpenSearchFilter, LogEntry, HistogramBucket, Cursor, OpenSearchResponse } from '@/types/api'
-import type { DataSource } from '@/components/TopBar/DataSourceToggle'
+import type { OpenSearchFilter, LogEntry, HistogramBucket, Cursor, ClickHouseResponse, ClickHouseAggregationResponse } from '@/types/api'
 import { flattenLog } from '@/utils/flattenLog'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type Theme = 'light' | 'dark'
-export type { DataSource }
 
 export interface TimeRange {
   from: Date
@@ -19,7 +17,6 @@ export interface AppState {
   config: AppConfig | null
   currentUser: UserConfig | null
   theme: Theme
-  dataSource: DataSource
   timeRange: TimeRange | null
   filters: OpenSearchFilter[]
   luceneQuery: string
@@ -40,7 +37,6 @@ export interface AppActions {
   setConfig: (config: AppConfig) => void
   setCurrentUser: (user: UserConfig | null) => void
   setTheme: (theme: Theme) => void
-  setDataSource: (source: DataSource) => void
   setTimeRange: (range: TimeRange) => void
   addFilter: (filter: OpenSearchFilter) => void
   removeFilter: (index: number) => void
@@ -53,10 +49,10 @@ export interface AppActions {
   setError: (error: string | null) => void
   logout: () => void
   // Log data
-  setLogData: (response: OpenSearchResponse) => void
-  appendLogs: (response: OpenSearchResponse) => void
+  setLogData: (response: ClickHouseResponse) => void
+  appendLogs: (response: ClickHouseResponse) => void
   resetLogData: () => void
-  updateHistogram: (response: OpenSearchResponse) => void
+  updateHistogram: (response: ClickHouseAggregationResponse) => void
   // Project codes
   setAvailableProjectCodes: (codes: string[]) => void
   setSelectedProjectCodes: (codes: string[]) => void
@@ -74,7 +70,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<AppConfig | null>(null)
   const [currentUser, setCurrentUserState] = useState<UserConfig | null>(null)
   const [theme, setThemeState] = useState<Theme>('light')
-  const [dataSource, setDataSourceState] = useState<DataSource>('opensearch')
   const [timeRange, setTimeRangeState] = useState<TimeRange | null>(null)
   const [filters, setFilters] = useState<OpenSearchFilter[]>([])
   const [luceneQuery, setLuceneQueryState] = useState('')
@@ -100,10 +95,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t)
-  }, [])
-
-  const setDataSource = useCallback((source: DataSource) => {
-    setDataSourceState(source)
   }, [])
 
   const setTimeRange = useCallback((range: TimeRange) => {
@@ -146,14 +137,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setError = useCallback((err: string | null) => setErrorState(err), [])
 
-  const setLogData = useCallback((response: OpenSearchResponse) => {
+  const setLogData = useCallback((response: ClickHouseResponse) => {
     setLogs((response.payload ?? []).map(log => flattenLog(log as Record<string, unknown>)))
-    setHistogramBuckets(response.dateHistogram?.buckets ?? [])
-    setTotalCount(Number(response.summary?.totalCount ?? 0))
     setCursor(response.cursor ?? null)
   }, [])
 
-  const appendLogs = useCallback((response: OpenSearchResponse) => {
+  const appendLogs = useCallback((response: ClickHouseResponse) => {
     const incoming = (response.payload ?? []).map(log => flattenLog(log as Record<string, unknown>))
     setLogs((prev) => {
       const existingIds = new Set(prev.map(l => l._id))
@@ -171,12 +160,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCursor(null)
   }, [])
 
-  const updateHistogram = useCallback((response: OpenSearchResponse) => {
-    const newBuckets = response.dateHistogram?.buckets
+  const updateHistogram = useCallback((response: ClickHouseAggregationResponse) => {
+    const newBuckets = response.aggregationResult?.buckets
     if (newBuckets && newBuckets.length > 0) {
       setHistogramBuckets(newBuckets)
+      // Derive totalCount from histogram buckets (sum of all bucket docCounts)
+      setTotalCount(newBuckets.reduce((sum, b) => sum + b.docCount, 0))
     }
-    // Если бэкенд не вернул histogram (или пустой) — сохраняем существующие бакеты
   }, [])
 
   const setAvailableProjectCodes = useCallback((codes: string[]) => setAvailableProjectCodesState(codes), [])
@@ -201,7 +191,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     config,
     currentUser,
     theme,
-    dataSource,
     timeRange,
     filters,
     luceneQuery,
@@ -215,7 +204,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setConfig,
     setCurrentUser,
     setTheme,
-    setDataSource,
     setTimeRange,
     addFilter,
     removeFilter,
