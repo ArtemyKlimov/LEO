@@ -81,7 +81,7 @@ export default function ExploreFieldModal({
       className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className={`w-[640px] max-h-[85vh] flex flex-col rounded-xl border shadow-2xl ${modalBg}`}>
+      <div className={`w-[90vw] max-w-[1200px] max-h-[85vh] flex flex-col rounded-xl border shadow-2xl ${modalBg}`}>
 
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div className={`flex items-start justify-between px-5 py-3.5 border-b flex-shrink-0 ${headBorder}`}>

@@ -304,6 +304,7 @@ function FieldItem({
   }
 
   async function handleExplore() {
+    setTvOpen(false)
     setExploreBuckets([])
     setExploreTotal(0)
     setExploreError(null)

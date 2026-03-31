@@ -359,9 +359,13 @@ export default function LogViewerPage() {
 
   const handleFetchTopValues = useCallback(async (fieldName: string): Promise<FieldValuesResponse> => {
     if (!currentUser || !config || !timeRange) throw new Error('Not ready')
-    const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, filters)
-    return fetchTopValues(fieldName, 10, queryFilters, currentUser, config)
-  }, [currentUser, config, timeRange, luceneQuery, filters, buildQueryFilters])
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, [...filters, ...projectCodeFilter])
+    return fetchTopValues(fieldName, config.logging.topNLimit ?? 10, queryFilters, currentUser, config)
+  }, [currentUser, config, timeRange, luceneQuery, filters, selectedProjectCodes, buildQueryFilters])
 
   function handleInclude(fieldName: string, value: string) {
     const filter: OpenSearchFilter = {

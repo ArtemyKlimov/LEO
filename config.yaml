@@ -38,6 +38,7 @@ users:                           # Список пользователей дл�
 logging:
   maxLogsPerPage: 100            # Максимальное количество логов на странице
   histogramBuckets: 70           # Количество бакетов по умолчанию
+  topNLimit: 20                  # Количество top-N значений для запроса к бэку
 
 ui:
   theme: "light"                 # light/dark
