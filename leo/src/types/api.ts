@@ -67,6 +67,13 @@ export type FilterOperator =
   | 'IS NOT ONE OF'
   | 'EXIST'
   | 'DOES NOT EXIST'
+  | 'CONTAINS'
+  | 'NOT CONTAINS'
+  | '>'
+  | '<'
+  | '>='
+  | '<='
+  | '=='
 
 export interface OpenSearchFilter {
   attributeName: string
@@ -79,48 +86,69 @@ export interface LogQueryRequest {
   endTime: string
 }
 
-export interface OpenSearchOrder {
-  fieldCode: string
-  sorting: 'asc' | 'desc'
+// ─── v2 Request types ────────────────────────────────────────────────────────
+
+export interface SortAttributes {
+  order: 'asc' | 'desc'
+  fieldName: string
 }
 
-export interface OpenSearchAttributes {
+export interface LogQueryFilters {
+  luceneQuery?: string
+  mainTimeFilter: LogQueryRequest
+  fieldFilters?: OpenSearchFilter[]
+}
+
+export interface ClickHousePageAttributes {
   limit: number
   cursors?: Record<string, Cursor>
-  order?: OpenSearchOrder
-  dateHistogramInterval?: DateHistogramInterval
 }
 
 export interface LogQueryPageableRequest {
-  queryAttributes: LogQueryRequest
-  pageAttributes: OpenSearchAttributes
-  filters?: OpenSearchFilter[]
-  isCHRequest?: boolean
+  sort: SortAttributes
+  filters: LogQueryFilters
+  pageAttributes: ClickHousePageAttributes
 }
 
-// ─── Response ────────────────────────────────────────────────────────────────
+// ─── v2 Response types ────────────────────────────────────────────────────────
+
+export interface AggregatedItems {
+  value: string
+  docCount: number
+}
 
 export interface HistogramBucket {
   docCount: number
   key: number
   keyAsString: string
+  parts?: AggregatedItems[]
 }
 
-export interface DateHistogram {
-  interval?: string
-  buckets?: HistogramBucket[]
-}
-
-export interface OpenSearchResponse {
+export interface ClickHouseResponse {
   payload?: LogEntry[]
   cursor?: Record<string, Cursor>
-  summary?: Record<string, string>
-  dateHistogram?: DateHistogram
+}
+
+export interface ClickHouseAggregationRequest {
+  aggregationType: 'histogram' | 'top-n'
+  aggregationAttributes?: {
+    fieldName?: string
+    limit?: number
+    dateHistogramInterval?: DateHistogramInterval
+  }
+  filters: LogQueryFilters
+}
+
+export interface ClickHouseAggregationResponse {
+  aggregationResult?: {
+    interval?: string
+    buckets?: HistogramBucket[]
+  }
 }
 
 // ─── UI Fields ───────────────────────────────────────────────────────────────
 
-export type FieldControlType = 'select' | 'datetime' | 'text'
+export type FieldControlType = 'select' | 'datetime' | 'text' | 'longText' | 'id' | 'hidden' | 'int'
 
 export interface Field {
   name?: string
@@ -136,15 +164,49 @@ export interface FormData {
   props?: Record<string, Field[]>
 }
 
-// ─── Field top values ────────────────────────────────────────────────────────
+// ─── Saved Searches ───────────────────────────────────────────────────────────
 
-export interface FieldValuesRequest {
-  queryAttributes: LogQueryRequest
-  filters?: OpenSearchFilter[]
-  fieldName: string
-  limit?: number
-  isCHRequest?: boolean
+export interface SavedSearchFilter {
+  attributeName: string
+  attributeValue: string[]
+  filterOperator?: FilterOperator
+  attributeVisibility?: boolean
 }
+
+export interface NewSavedSearchRequest {
+  name: string
+  onlyMy?: boolean
+  queryAttributes?: { startTime?: string; endTime?: string }
+  filters: SavedSearchFilter[]
+}
+
+export interface SavedSearchItemGetResult {
+  id: string
+  name: string
+  version: number
+  seqNo: number
+  primaryTerm: number
+  author?: string
+  onlyMy: boolean
+  apply: boolean
+  share: boolean
+  delete: boolean
+  storageType: string
+  filters: SavedSearchFilter[]
+}
+
+export interface SavedSearchGetResult {
+  savedSearchItems: SavedSearchItemGetResult[]
+}
+
+export interface SavedSearchCreateResult {
+  id: string
+  version: number
+  seqNo: number
+  primaryTerm: number
+}
+
+// ─── Field top values (used internally by Sidebar / FilterBuilder) ────────────
 
 export interface FieldValuesBucket {
   value: string

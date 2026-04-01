@@ -21,6 +21,8 @@ interface FetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   timeoutMs?: number
+  /** External AbortSignal — позволяет отменить запрос извне (например, из useEffect cleanup) */
+  signal?: AbortSignal
   /** Skip 401-retry (used internally to avoid infinite loop) */
   skipRefresh?: boolean
 }
@@ -35,12 +37,21 @@ export async function apiFetch<T>(
   config: AppConfig,
   options: FetchOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, timeoutMs = DEFAULT_TIMEOUT_MS, skipRefresh = false } = options
+  const { method = 'GET', body, timeoutMs = DEFAULT_TIMEOUT_MS, signal: externalSignal, skipRefresh = false } = options
 
   const token = await getToken(user, config)
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  // Propagate external cancellation into the internal controller
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timer)
+      throw new ApiError(0, 'Aborted')
+    }
+    externalSignal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,

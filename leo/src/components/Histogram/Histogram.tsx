@@ -13,6 +13,29 @@ const INTERVALS: { label: string; value: DateHistogramInterval }[] = [
   { label: '1д',    value: 'day' },
 ]
 
+// ─── Breakdown colors ─────────────────────────────────────────────────────────
+
+const LEVEL_COLORS: Record<string, string> = {
+  FATAL:    '#991B1B',
+  CRITICAL: '#DC2626',
+  ERROR:    '#EF4444',
+  WARN:     '#F59E0B',
+  WARNING:  '#F59E0B',
+  INFO:     '#3B82F6',
+  DEBUG:    '#64748B',
+  TRACE:    '#94A3B8',
+}
+
+const APP_PALETTE = [
+  '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
+  '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16',
+]
+
+function getColor(breakdown: string, value: string, index: number): string {
+  if (breakdown === 'level') return LEVEL_COLORS[value.toUpperCase()] ?? '#64748B'
+  return APP_PALETTE[index % APP_PALETTE.length]
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function fmtXLabel(isoStr: string, spanMs: number): string {
@@ -46,7 +69,9 @@ interface Props {
   buckets: HistogramBucket[]
   totalCount: number
   interval: DateHistogramInterval
+  breakdown: 'level' | 'appName' | null
   onIntervalChange: (v: DateHistogramInterval) => void
+  onBreakdownChange: (f: 'level' | 'appName' | null) => void
   onBucketClick: (bucket: HistogramBucket, bucketDurationMs: number) => void
   onRangeSelect: (from: Date, to: Date) => void
 }
@@ -54,8 +79,8 @@ interface Props {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Histogram({
-  dark, buckets, totalCount, interval,
-  onIntervalChange, onBucketClick, onRangeSelect,
+  dark, buckets, totalCount, interval, breakdown,
+  onIntervalChange, onBreakdownChange, onBucketClick, onRangeSelect,
 }: Props) {
 
   // Вычисляем длительность одного бакета из разницы между соседними
@@ -66,6 +91,20 @@ export default function Histogram({
   const spanMs = buckets.length >= 2
     ? buckets[buckets.length - 1].key - buckets[0].key
     : 0
+
+  // ── Уникальные значения из parts ────────────────────────────────────────────
+
+  const partValues = useMemo(() => {
+    if (!breakdown) return []
+    const seen = new Set<string>()
+    for (const b of buckets) {
+      for (const p of b.parts ?? []) seen.add(p.value)
+    }
+    return Array.from(seen)
+  }, [buckets, breakdown])
+
+  // Разбивка активна И данные parts реально есть в бакетах
+  const hasParts = breakdown !== null && partValues.length > 0
 
   // ── Палитра по теме ─────────────────────────────────────────────────────────
 
@@ -83,88 +122,136 @@ export default function Histogram({
 
   // ── ECharts option ──────────────────────────────────────────────────────────
 
-  const option = useMemo(() => ({
-    animation: false,
-    backgroundColor: 'transparent',
-    grid: { left: 50, right: 40, top: 8, bottom: 34 },
+  const option = useMemo(() => {
+    const series = hasParts
+      ? [
+          // Серии по каждому значению разбивки (stacked)
+          ...partValues.map((val, i) => ({
+            name: val,
+            type: 'bar' as const,
+            stack: 'breakdown',
+            data: buckets.map(b => b.parts?.find(p => p.value === val)?.docCount ?? 0),
+            itemStyle: { color: getColor(breakdown!, val, i) },
+            emphasis: { focus: 'series' },
+            barMaxWidth: 40,
+            barCategoryGap: '15%',
+          })),
+          // Fallback-серия: бакеты без parts рисуются стандартным цветом
+          {
+            name: '_fallback',
+            type: 'bar' as const,
+            stack: 'breakdown',
+            data: buckets.map(b => (b.parts && b.parts.length > 0) ? 0 : b.docCount),
+            itemStyle: { color: c.bar },
+            barMaxWidth: 40,
+            barCategoryGap: '15%',
+          },
+        ]
+      : [{
+          type: 'bar' as const,
+          data: buckets.map(b => b.docCount),
+          itemStyle: { color: c.bar, borderRadius: [2, 2, 0, 0] as [number, number, number, number] },
+          emphasis: { itemStyle: { color: c.barHover } },
+          barMaxWidth: 40,
+          barCategoryGap: '15%',
+        }]
 
-    xAxis: {
-      type: 'category',
-      data: buckets.map(b => b.keyAsString),
-      axisLine:  { lineStyle: { color: c.axis } },
-      axisTick:  { show: false },
-      splitLine: { show: false },
-      axisLabel: {
-        color:    c.label,
-        fontSize: 10,
-        interval: Math.max(0, Math.floor(buckets.length / 8) - 1),
-        formatter: (v: string) => fmtXLabel(v, spanMs),
-      },
-    },
+    const tooltipFormatter = hasParts
+      ? (params: Array<{ seriesName: string; value: number; color: string; name: string }>) => {
+          const date = params[0]?.name ? `<div style="font-size:10px;color:${c.ttMuted};margin-bottom:4px">${fmtTooltipDate(params[0].name)}</div>` : ''
+          const fallback = params.find(p => p.seriesName === '_fallback' && p.value > 0)
+          // Бакет без parts: показываем как обычный tooltip
+          if (fallback && !params.some(p => p.seriesName !== '_fallback' && p.value > 0)) {
+            return date + `<div style="font-size:13px;font-weight:600;color:${c.ttText}">${fallback.value.toLocaleString('ru-RU')} записей</div>`
+          }
+          // Бакет с parts: показываем разбивку (без _fallback)
+          const rows = params
+            .filter(p => p.value > 0 && p.seriesName !== '_fallback')
+            .map(p => `<div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
+              <span style="color:${c.ttMuted}">${p.seriesName}:</span>
+              <span style="font-weight:600;color:${c.ttText}">${p.value.toLocaleString('ru-RU')}</span>
+            </div>`).join('')
+          return date + rows
+        }
+      : (params: Array<{ name: string; value: number }>) => {
+          const p = params[0]
+          return [
+            `<div style="font-size:10px;color:${c.ttMuted};margin-bottom:2px">${fmtTooltipDate(p.name)}</div>`,
+            `<div style="font-size:13px;font-weight:600;color:${c.ttText}">${p.value.toLocaleString('ru-RU')} записей</div>`,
+          ].join('')
+        }
 
-    yAxis: {
-      type: 'value',
-      axisLine:  { show: false },
-      axisTick:  { show: false },
-      axisLabel: { color: c.label, fontSize: 10, formatter: fmtYLabel },
-      splitLine: { lineStyle: { color: c.axis, type: 'dashed', opacity: 0.6 } },
-    },
+    return {
+      animation: false,
+      backgroundColor: 'transparent',
+      grid: { left: 50, right: 40, top: 8, bottom: 34 },
 
-    series: [{
-      type: 'bar',
-      data: buckets.map(b => b.docCount),
-      itemStyle: { color: c.bar, borderRadius: [2, 2, 0, 0] },
-      emphasis:  { itemStyle: { color: c.barHover } },
-      barMaxWidth: 40,
-      barCategoryGap: '15%',
-    }],
-
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-        shadowStyle: { color: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' },
-      },
-      backgroundColor: c.ttBg,
-      borderColor:     c.ttBorder,
-      borderWidth: 1,
-      padding: [6, 10],
-      textStyle: { color: c.ttText, fontSize: 12 },
-      formatter: (params: Array<{ name: string; value: number }>) => {
-        const p = params[0]
-        return [
-          `<div style="font-size:10px;color:${c.ttMuted};margin-bottom:2px">${fmtTooltipDate(p.name)}</div>`,
-          `<div style="font-size:13px;font-weight:600;color:${c.ttText}">${p.value.toLocaleString('ru-RU')} записей</div>`,
-        ].join('')
-      },
-    },
-
-    // Brush — выделение диапазона
-    brush: {
-      xAxisIndex: 0,
-      brushStyle: {
-        borderWidth: 1,
-        color:       'rgba(59,130,246,0.15)',
-        borderColor: '#3B82F6',
-      },
-    },
-
-    toolbox: {
-      show:     true,
-      right:    4,
-      top:      2,
-      itemSize: 13,
-      feature: {
-        brush: {
-          type: ['lineX', 'clear'],
-          title: { lineX: 'Выбрать диапазон', clear: 'Сбросить' },
+      xAxis: {
+        type: 'category',
+        data: buckets.map(b => b.keyAsString),
+        axisLine:  { lineStyle: { color: c.axis } },
+        axisTick:  { show: false },
+        splitLine: { show: false },
+        axisLabel: {
+          color:    c.label,
+          fontSize: 10,
+          interval: Math.max(0, Math.floor(buckets.length / 8) - 1),
+          formatter: (v: string) => fmtXLabel(v, spanMs),
         },
       },
-      iconStyle: { borderColor: c.label, borderWidth: 1.5 },
-      emphasis: { iconStyle: { borderColor: c.bar } },
-    },
+
+      yAxis: {
+        type: 'value',
+        axisLine:  { show: false },
+        axisTick:  { show: false },
+        axisLabel: { color: c.label, fontSize: 10, formatter: fmtYLabel },
+        splitLine: { lineStyle: { color: c.axis, type: 'dashed', opacity: 0.6 } },
+      },
+
+      series,
+
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow',
+          shadowStyle: { color: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' },
+        },
+        backgroundColor: c.ttBg,
+        borderColor:     c.ttBorder,
+        borderWidth: 1,
+        padding: [6, 10],
+        textStyle: { color: c.ttText, fontSize: 12 },
+        formatter: tooltipFormatter as never,
+      },
+
+      // Brush — выделение диапазона
+      brush: {
+        xAxisIndex: 0,
+        brushStyle: {
+          borderWidth: 1,
+          color:       'rgba(59,130,246,0.15)',
+          borderColor: '#3B82F6',
+        },
+      },
+
+      toolbox: {
+        show:     true,
+        right:    4,
+        top:      2,
+        itemSize: 13,
+        feature: {
+          brush: {
+            type: ['lineX', 'clear'],
+            title: { lineX: 'Выбрать диапазон', clear: 'Сбросить' },
+          },
+        },
+        iconStyle: { borderColor: c.label, borderWidth: 1.5 },
+        emphasis: { iconStyle: { borderColor: c.bar } },
+      },
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [buckets, dark])
+  }, [buckets, dark, breakdown, partValues, hasParts])
 
   // ── Event handlers ──────────────────────────────────────────────────────────
 
@@ -202,6 +289,15 @@ export default function Histogram({
         : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
   ].join(' ')
 
+  const breakdownBtnCls = (active: boolean) => [
+    'px-2 py-0.5 rounded text-xs transition-colors cursor-pointer select-none',
+    active
+      ? 'bg-blue-600 text-white ring-1 ring-blue-400/50'
+      : dark
+        ? 'text-slate-500 hover:text-slate-200 hover:bg-slate-700'
+        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+  ].join(' ')
+
   const containerCls = [
     'border-b flex-shrink-0',
     dark ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200',
@@ -213,7 +309,7 @@ export default function Histogram({
   ].join(' ')
 
   const footerCls = [
-    'flex items-center justify-end gap-1 px-4 py-1 text-xs border-t',
+    'flex items-center gap-1 px-4 py-1 text-xs border-t',
     dark ? 'border-slate-800 text-slate-600' : 'border-gray-100 text-gray-400',
   ].join(' ')
 
@@ -221,7 +317,7 @@ export default function Histogram({
 
   return (
     <div className={containerCls}>
-      {/* Toolbar: interval selector */}
+      {/* Toolbar: interval selector + breakdown */}
       <div className={toolbarCls}>
         <span className={['text-xs', dark ? 'text-slate-500' : 'text-gray-400'].join(' ')}>
           Интервал:
@@ -234,6 +330,25 @@ export default function Histogram({
               className={intervalBtnCls(interval === value)}
             >
               {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <span className={['w-px h-3.5 self-center', dark ? 'bg-slate-700' : 'bg-gray-300'].join(' ')} />
+
+        <span className={['text-xs', dark ? 'text-slate-500' : 'text-gray-400'].join(' ')}>
+          Разбивка:
+        </span>
+        <div className="flex items-center gap-0.5">
+          {(['level', 'appName'] as const).map(field => (
+            <button
+              key={field}
+              onClick={() => onBreakdownChange(breakdown === field ? null : field)}
+              className={breakdownBtnCls(breakdown === field)}
+              title={field === 'level' ? 'Разбивка по уровню логов' : 'Разбивка по имени приложения'}
+            >
+              {field}
             </button>
           ))}
         </div>
@@ -256,14 +371,37 @@ export default function Histogram({
         </div>
       )}
 
-      {/* Footer: total count */}
-      <div className={footerCls}>
-        <span>Всего:</span>
-        <span className={['font-medium tabular-nums', dark ? 'text-slate-300' : 'text-gray-700'].join(' ')}>
-          {totalCount.toLocaleString('ru-RU')}
-        </span>
-        <span>записей</span>
-      </div>
+      {/* Footer */}
+      {hasParts ? (
+        <div className={[footerCls, 'justify-between'].join(' ')}>
+          <div className="flex items-center gap-3 overflow-x-auto flex-1 min-w-0">
+            {partValues.map((val, i) => (
+              <span key={val} className="flex items-center gap-1 flex-shrink-0">
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: getColor(breakdown!, val, i) }}
+                />
+                <span className="text-xs">{val}</span>
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span>Всего:</span>
+            <span className={['font-medium tabular-nums', dark ? 'text-slate-300' : 'text-gray-700'].join(' ')}>
+              {totalCount.toLocaleString('ru-RU')}
+            </span>
+            <span>записей</span>
+          </div>
+        </div>
+      ) : (
+        <div className={[footerCls, 'justify-end'].join(' ')}>
+          <span>Всего:</span>
+          <span className={['font-medium tabular-nums', dark ? 'text-slate-300' : 'text-gray-700'].join(' ')}>
+            {totalCount.toLocaleString('ru-RU')}
+          </span>
+          <span>записей</span>
+        </div>
+      )}
     </div>
   )
 }

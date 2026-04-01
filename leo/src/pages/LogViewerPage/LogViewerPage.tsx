@@ -2,25 +2,32 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
-import { fetchLogs, buildLogRequest, getFilterFields, fetchFieldTopValues } from '@/api/endpoints'
+import {
+  fetchLogs, fetchHistogram, fetchTopValues, buildLogRequest,
+  getFilterFields, fetchSavedSearches, createSavedSearch, deleteSavedSearch,
+} from '@/api/endpoints'
 import { ApiError } from '@/api/client'
+import { buildSavedSearchFilters } from '@/components/TopBar/SavedSearchesPanel'
 import TopBar, { PRESET_LABELS } from '@/components/TopBar/TopBar'
 import Histogram from '@/components/Histogram/Histogram'
 import Sidebar from '@/components/Sidebar/Sidebar'
 import LogTable from '@/components/LogTable/LogTable'
 import FilterBar from '@/components/FilterBar/FilterBar'
 import FilterBuilder from '@/components/FilterBuilder/FilterBuilder'
-import type { DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter, FieldValuesResponse } from '@/types/api'
+import type {
+  DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter,
+  FieldValuesResponse, FieldValuesBucket, SavedSearchItemGetResult, LogQueryFilters,
+} from '@/types/api'
 
 export default function LogViewerPage() {
   const {
     currentUser, config, theme,
     timeRange, luceneQuery, logs, filters, histogramBuckets, pinnedFields,
-    cursor, dataSource, totalCount,
+    cursor, totalCount,
     availableProjectCodes, selectedProjectCodes, setSelectedProjectCodes,
-    logout, setTheme, setTimeRange, setLuceneQuery, setDataSource,
-    setLogData, appendLogs, setLoading, setError, isLoading,
-    addFilter, removeFilter, clearFilters, pinField, unpinField,
+    logout, setTheme, setTimeRange, setLuceneQuery,
+    setLogData, appendLogs, updateHistogram, setLoading, setError, isLoading,
+    addFilter, removeFilter, clearFilters, pinField, unpinField, setPinnedFields,
   } = useApp()
   const navigate = useNavigate()
 
@@ -29,24 +36,31 @@ export default function LogViewerPage() {
   // Нужен выбор projectCode: кодов > 5 и ни один не выбран
   const needsProjectSelection = availableProjectCodes.length > 5 && selectedProjectCodes.length === 0
 
+  const [savedSearches, setSavedSearches] = useState<SavedSearchItemGetResult[]>([])
+  const [activeSearchName, setActiveSearchName] = useState<string | null>(null)
+
   const [activePresetMinutes, setActivePresetMinutes] = useState<number | null>(15)
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [activeBreakdown, setActiveBreakdown] = useState<'level' | 'appName' | null>(null)
 
   // ─── UI fields (sidebar) ─────────────────────────────────────────────────────
 
-  // Поля из API (с метаданными: options, controlType)
   const [apiFields, setApiFields] = useState<Field[]>([])
   const [fieldsLoading, setFieldsLoading] = useState(false)
 
   useEffect(() => {
     if (!currentUser || !config) return
+    // Ждём определения кодов: если кодов > 5 — нужен явный выбор пользователя
+    if (availableProjectCodes.length > 5 && selectedProjectCodes.length === 0) return
+    const ac = new AbortController()
     setFieldsLoading(true)
-    getFilterFields(currentUser, config)
-      .then(data => setApiFields(data.fields ?? []))
+    getFilterFields(currentUser, config, selectedProjectCodes, ac.signal)
+      .then(data => { if (!ac.signal.aborted) setApiFields(data.fields ?? []) })
       .catch(() => {/* endpoint недоступен — используем fallback из логов */})
-      .finally(() => setFieldsLoading(false))
-  }, [currentUser, config])
+      .finally(() => { if (!ac.signal.aborted) setFieldsLoading(false) })
+    return () => ac.abort()
+  }, [currentUser, config, selectedProjectCodes, availableProjectCodes])
 
   // Частота полей: доля логов, в которых поле присутствует и не пустое
   const fieldFrequency = useMemo<Record<string, number>>(() => {
@@ -63,33 +77,36 @@ export default function LogViewerPage() {
     return Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, v / total]))
   }, [logs])
 
-  // Итоговый список полей: API-поля обогащены метаданными + поля из логов как fallback
-  // Поля служебного характера (_id, @timestamp, levelInt) скрываем
   const HIDDEN_FIELDS = new Set(['_id', '@timestamp', 'levelInt'])
 
   const uiFields = useMemo<Field[]>(() => {
     const apiByName = new Map(apiFields.map(f => [f.name, f]))
-
-    // Поля из загруженных логов, отсортированные по частоте
     const logFieldNames = Object.keys(fieldFrequency)
       .filter(k => !HIDDEN_FIELDS.has(k))
       .sort((a, b) => (fieldFrequency[b] ?? 0) - (fieldFrequency[a] ?? 0))
-
-    // Объединяем: сначала берём поля из логов (с частотой),
-    // обогащаем метаданными из API если есть
     const merged = logFieldNames.map(name => apiByName.get(name) ?? { name })
-
-    // Добавляем API-поля, которых нет в логах (редкие поля)
     for (const f of apiFields) {
       if (f.name && !HIDDEN_FIELDS.has(f.name) && !logFieldNames.includes(f.name)) {
         merged.push(f)
       }
     }
-
     return merged
   }, [apiFields, fieldFrequency])
 
   // ─── Core fetch ─────────────────────────────────────────────────────────────
+
+  const buildQueryFilters = useCallback((
+    from: Date,
+    to: Date,
+    query: string,
+    fieldFilters: OpenSearchFilter[],
+  ): LogQueryFilters => {
+    return {
+      mainTimeFilter: { startTime: from.toISOString(), endTime: to.toISOString() },
+      ...(query.trim() && { luceneQuery: query.trim() }),
+      ...(fieldFilters.length > 0 && { fieldFilters }),
+    }
+  }, [])
 
   const doFetch = useCallback(async (
     from: Date,
@@ -97,7 +114,6 @@ export default function LogViewerPage() {
     query: string,
     histInterval: DateHistogramInterval = histogramInterval,
     filtersOverride?: OpenSearchFilter[],
-    isCHOverride?: boolean,
     projectCodesOverride?: string[],
   ) => {
     if (!currentUser || !config) return
@@ -105,31 +121,73 @@ export default function LogViewerPage() {
     setError(null)
     try {
       const activeFilters = filtersOverride ?? filters
-      const isCH = isCHOverride ?? (dataSource === 'clickhouse')
-      const luceneFilter = query.trim()
-        ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [query.trim()] }]
-        : []
       const activeCodes = projectCodesOverride ?? selectedProjectCodes
       const projectCodeFilter: OpenSearchFilter[] =
         activeCodes.length > 0
           ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: activeCodes }]
           : []
-      const req = buildLogRequest(
-        from, to,
-        {
-          filters: [...activeFilters, ...luceneFilter, ...projectCodeFilter],
-          pageAttributes: { dateHistogramInterval: histInterval },
-          isCHRequest: isCH,
-        },
-        config.logging.maxLogsPerPage,
-      )
-      setLogData(await fetchLogs(req, currentUser, config))
+      const allFieldFilters = [...activeFilters, ...projectCodeFilter]
+
+      const logReq = buildLogRequest(from, to, {
+        fieldFilters: allFieldFilters,
+        luceneQuery: query,
+      }, config.logging.maxLogsPerPage)
+
+      const [logsResponse, histResponse] = await Promise.all([
+        fetchLogs(logReq, currentUser, config),
+        fetchHistogram(logReq.filters, histInterval, activeBreakdown, currentUser, config),
+      ])
+      setLogData(logsResponse)
+      updateHistogram(histResponse)
     } catch (err) {
       setError(err instanceof ApiError ? `Ошибка API ${err.status}: ${err.message}` : String(err))
     } finally {
       setLoading(false)
     }
-  }, [currentUser, config, filters, histogramInterval, dataSource, selectedProjectCodes, setLoading, setError, setLogData])
+  }, [currentUser, config, filters, histogramInterval, selectedProjectCodes, activeBreakdown, setLoading, setError, setLogData, updateHistogram])
+
+  // ─── Saved searches ──────────────────────────────────────────────────────────
+
+  const loadSavedSearches = useCallback(async () => {
+    if (!currentUser || !config) return
+    try {
+      const result = await fetchSavedSearches(currentUser, config)
+      setSavedSearches(result.savedSearchItems ?? [])
+    } catch { /* silent — endpoint may be unavailable */ }
+  }, [currentUser, config])
+
+  useEffect(() => {
+    if (!currentUser || !config) return
+    const ac = new AbortController()
+    fetchSavedSearches(currentUser, config, ac.signal)
+      .then(result => { if (!ac.signal.aborted) setSavedSearches(result.savedSearchItems ?? []) })
+      .catch(() => {})
+    return () => ac.abort()
+  }, [currentUser, config])
+
+  async function handleSaveSearch(name: string, onlyMy: boolean) {
+    if (!currentUser || !config) return
+    const apiFilters = buildSavedSearchFilters(filters, pinnedFields)
+    await createSavedSearch({ name, onlyMy, filters: apiFilters }, currentUser, config)
+    setActiveSearchName(name)
+    await loadSavedSearches()
+  }
+
+  function handleLoadSearch(loadedFilters: OpenSearchFilter[], loadedPinnedFields: string[]) {
+    clearFilters()
+    loadedFilters.forEach(addFilter)
+    setPinnedFields(loadedPinnedFields)
+    if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, loadedFilters)
+  }
+
+  async function handleDeleteSearch(id: string) {
+    if (!currentUser || !config) return
+    await deleteSavedSearch([id], currentUser, config)
+    if (savedSearches.find(s => s.id === id)?.name === activeSearchName) {
+      setActiveSearchName(null)
+    }
+    await loadSavedSearches()
+  }
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
 
@@ -137,9 +195,6 @@ export default function LogViewerPage() {
     if (!currentUser || !config || !timeRange || !cursor || isLoadingMore) return
     setIsLoadingMore(true)
     try {
-      const luceneFilter = luceneQuery.trim()
-        ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
-        : []
       const projectCodeFilter: OpenSearchFilter[] =
         selectedProjectCodes.length > 0
           ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
@@ -147,9 +202,9 @@ export default function LogViewerPage() {
       const req = buildLogRequest(
         timeRange.from, timeRange.to,
         {
-          filters: [...filters, ...luceneFilter, ...projectCodeFilter],
-          pageAttributes: { dateHistogramInterval: histogramInterval, cursors: cursor },
-          isCHRequest: dataSource === 'clickhouse',
+          fieldFilters: [...filters, ...projectCodeFilter],
+          luceneQuery,
+          cursors: cursor,
         },
         config.logging.maxLogsPerPage,
       )
@@ -159,7 +214,7 @@ export default function LogViewerPage() {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, histogramInterval, dataSource, selectedProjectCodes, appendLogs])
+  }, [currentUser, config, timeRange, cursor, isLoadingMore, luceneQuery, filters, selectedProjectCodes, appendLogs])
 
   // ─── TopBar handlers ─────────────────────────────────────────────────────────
 
@@ -188,15 +243,10 @@ export default function LogViewerPage() {
     navigate('/')
   }
 
-  function handleDataSourceChange(source: typeof dataSource) {
-    setDataSource(source)
-    if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, source === 'clickhouse')
-  }
-
   function handleProjectCodesChange(codes: string[]) {
     setSelectedProjectCodes(codes)
     if (codes.length > 0 && timeRange) {
-      doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, undefined, codes)
+      doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, undefined, codes)
     }
   }
 
@@ -233,10 +283,47 @@ export default function LogViewerPage() {
 
   // ─── Histogram handlers ──────────────────────────────────────────────────────
 
-  function handleIntervalChange(newInterval: DateHistogramInterval) {
+  async function handleIntervalChange(newInterval: DateHistogramInterval) {
     setHistogramInterval(newInterval)
-    if (!timeRange) return
-    doFetch(timeRange.from, timeRange.to, luceneQuery, newInterval)
+    if (!timeRange || !currentUser || !config) return
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, [...filters, ...projectCodeFilter])
+    setLoading(true)
+    setError(null)
+    try {
+      updateHistogram(await fetchHistogram(queryFilters, newInterval, activeBreakdown, currentUser, config))
+    } catch (err) {
+      setError(err instanceof ApiError ? `Ошибка API ${err.status}: ${err.message}` : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleBreakdownChange(newField: 'level' | 'appName' | null) {
+    setActiveBreakdown(newField)
+    if (!timeRange || !currentUser || !config) return
+
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const allFieldFilters = [...filters, ...projectCodeFilter]
+    const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, allFieldFilters)
+
+    setLoading(true)
+    setError(null)
+    try {
+      updateHistogram(
+        await fetchHistogram(queryFilters, histogramInterval, newField, currentUser, config),
+      )
+    } catch (err) {
+      setError(err instanceof ApiError ? `Ошибка API ${err.status}: ${err.message}` : String(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
   function handleBucketClick(bucket: HistogramBucket, bucketDurationMs: number) {
@@ -255,26 +342,30 @@ export default function LogViewerPage() {
 
   // ─── Sidebar handlers ────────────────────────────────────────────────────────
 
-  async function handleFetchTopValues(fieldName: string): Promise<FieldValuesResponse> {
-    if (!currentUser || !config || !timeRange) throw new Error('Not ready')
-    const luceneFilter = luceneQuery.trim()
-      ? [{ attributeName: 'text', filterOperator: 'IS' as const, attributeValue: [luceneQuery.trim()] }]
-      : []
-    return fetchFieldTopValues(
-      {
-        queryAttributes: {
-          startTime: timeRange.from.toISOString(),
-          endTime:   timeRange.to.toISOString(),
-        },
-        filters: [...filters, ...luceneFilter],
-        fieldName,
-        limit: 5,
-        isCHRequest: dataSource === 'clickhouse',
-      },
-      currentUser,
-      config,
-    )
+  function handleGetLocalTopValues(fieldName: string): FieldValuesBucket[] {
+    const counts: Record<string, number> = {}
+    for (const log of logs) {
+      const val = log[fieldName]
+      if (val != null && val !== '') {
+        const key = String(val)
+        counts[key] = (counts[key] ?? 0) + 1
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([value, docCount]) => ({ value, docCount }))
   }
+
+  const handleFetchTopValues = useCallback(async (fieldName: string): Promise<FieldValuesResponse> => {
+    if (!currentUser || !config || !timeRange) throw new Error('Not ready')
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, [...filters, ...projectCodeFilter])
+    return fetchTopValues(fieldName, config.logging.topNLimit ?? 10, queryFilters, currentUser, config)
+  }, [currentUser, config, timeRange, luceneQuery, filters, selectedProjectCodes, buildQueryFilters])
 
   function handleInclude(fieldName: string, value: string) {
     const filter: OpenSearchFilter = {
@@ -310,6 +401,22 @@ export default function LogViewerPage() {
     if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, newFilters)
   }
 
+  async function handleFetchFilterValues(fieldName: string): Promise<FieldValuesBucket[]> {
+    if (!currentUser || !config || !timeRange) return []
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const allFieldFilters = [...filters, ...projectCodeFilter]
+    const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, allFieldFilters)
+    try {
+      const response = await fetchTopValues(fieldName, 50, queryFilters, currentUser, config)
+      return response.buckets ?? []
+    } catch {
+      return []
+    }
+  }
+
   function handleRemoveFilter(index: number) {
     const newFilters = filters.filter((_, i) => i !== index)
     removeFilter(index)
@@ -337,10 +444,13 @@ export default function LogViewerPage() {
         luceneQuery={luceneQuery}
         isLoading={isLoading}
         activePresetMinutes={activePresetMinutes}
-        dataSource={dataSource}
         availableProjectCodes={availableProjectCodes}
         selectedProjectCodes={selectedProjectCodes}
         highlightProjectCodes={needsProjectSelection}
+        savedSearches={savedSearches}
+        activeSearchName={activeSearchName}
+        currentFilters={filters}
+        currentPinnedFields={pinnedFields}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
@@ -348,8 +458,10 @@ export default function LogViewerPage() {
         onExport={handleExport}
         onThemeToggle={() => setTheme(dark ? 'light' : 'dark')}
         onLogout={handleLogout}
-        onDataSourceChange={handleDataSourceChange}
         onProjectCodesChange={handleProjectCodesChange}
+        onSaveSearch={handleSaveSearch}
+        onLoadSearch={handleLoadSearch}
+        onDeleteSearch={handleDeleteSearch}
       />
 
       {needsProjectSelection ? (
@@ -372,7 +484,9 @@ export default function LogViewerPage() {
         buckets={histogramBuckets}
         totalCount={totalCount}
         interval={histogramInterval}
+        breakdown={activeBreakdown}
         onIntervalChange={handleIntervalChange}
+        onBreakdownChange={handleBreakdownChange}
         onBucketClick={handleBucketClick}
         onRangeSelect={handleRangeSelect}
       />
@@ -385,6 +499,7 @@ export default function LogViewerPage() {
           addFilter(filter)
           if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, newFilters)
         }}
+        onFetchFieldValues={timeRange ? handleFetchFilterValues : undefined}
       />
 
       <FilterBar
@@ -402,10 +517,12 @@ export default function LogViewerPage() {
           fieldFrequency={fieldFrequency}
           pinnedFields={pinnedFields}
           isLoading={fieldsLoading}
+          loadedLogsCount={logs.length}
           onInclude={handleInclude}
           onExclude={handleExclude}
           onPin={pinField}
           onUnpin={unpinField}
+          onGetLocalTopValues={handleGetLocalTopValues}
           onFetchTopValues={handleFetchTopValues}
         />
 

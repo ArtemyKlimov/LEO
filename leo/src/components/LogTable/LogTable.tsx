@@ -88,6 +88,14 @@ function IconPin({ cls }: { cls: string }) {
   )
 }
 
+function IconX({ cls }: { cls: string }) {
+  return (
+    <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
 // ─── ResizeHandle ─────────────────────────────────────────────────────────────
 
 function ResizeHandle({ onResize, dark }: { onResize: (delta: number) => void; dark: boolean }) {
@@ -140,6 +148,45 @@ interface Props {
   onUnpin: (fieldName: string) => void
 }
 
+// ─── JSON syntax highlighting ─────────────────────────────────────────────────
+
+function JsonValue({ raw }: { raw: string }) {
+  const t = raw.trimEnd().replace(/,$/, '')  // убираем запятую для определения типа
+  if (t.startsWith('"'))         return <span className="text-emerald-400">{raw}</span>
+  if (t === 'true' || t === 'false') return <span className="text-orange-400">{raw}</span>
+  if (t === 'null')              return <span className="text-slate-500">{raw}</span>
+  if (/^-?\d/.test(t))          return <span className="text-violet-400">{raw}</span>
+  return <span className="text-slate-300">{raw}</span>
+}
+
+function JsonLine({ line }: { line: string }) {
+  // Строка вида: <indent>"key": value[,]
+  const m = line.match(/^(\s*)("(?:[^"\\]|\\.)*")(\s*:\s*)(.*?)(,?)$/)
+  if (m) {
+    const [, indent, key, colon, value, comma] = m
+    return (
+      <div>
+        <span>{indent}</span>
+        <span className="text-sky-400">{key}</span>
+        <span className="text-slate-500">{colon}</span>
+        <JsonValue raw={value + comma} />
+      </div>
+    )
+  }
+  // { } , или просто текст
+  return <div className="text-slate-400">{line}</div>
+}
+
+function JsonView({ entries }: { entries: [string, unknown][] }) {
+  const json = JSON.stringify(Object.fromEntries(entries), null, 2)
+  const lines = json.split('\n')
+  return (
+    <pre className="font-mono text-xs leading-5 overflow-auto max-h-96 m-3 p-3 rounded-md bg-slate-950 border border-slate-700 whitespace-pre">
+      {lines.map((line, i) => <JsonLine key={i} line={line} />)}
+    </pre>
+  )
+}
+
 // ─── Expanded row ─────────────────────────────────────────────────────────────
 
 interface ExpandedRowProps {
@@ -153,16 +200,20 @@ interface ExpandedRowProps {
 }
 
 function ExpandedRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onUnpin }: ExpandedRowProps) {
+  const [view, setView] = useState<'fields' | 'json'>('fields')
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const entries = Object.entries(log)
     .filter(([k]) => !HIDDEN_FIELDS.has(k))
     .sort(([a], [b]) => a.localeCompare(b))
 
-  const borderCls  = dark ? 'border-slate-700'  : 'border-gray-100'
-  const bgCls      = dark ? 'bg-slate-950'       : 'bg-gray-50'
-  const keyClsCls  = dark ? 'text-slate-500'     : 'text-gray-400'
-  const valCls     = dark ? 'text-slate-200'     : 'text-gray-800'
+  const borderCls = dark ? 'border-slate-700' : 'border-gray-100'
+  const bgCls     = dark ? 'bg-slate-950'     : 'bg-gray-50'
+  const keyClsCls = dark ? 'text-slate-500'   : 'text-gray-400'
+  const valCls    = dark ? 'text-slate-200'   : 'text-gray-800'
 
-  function btnCls(hoverColor: string) {
+  function fieldBtnCls(hoverColor: string) {
     return `p-0.5 rounded cursor-pointer transition-colors ${
       dark
         ? `text-slate-700 hover:${hoverColor} hover:bg-slate-700`
@@ -170,62 +221,134 @@ function ExpandedRow({ log, dark, pinnedFields, onInclude, onExclude, onPin, onU
     }`
   }
 
-  return (
-    <div className={`px-4 py-3 border-t ${borderCls} ${bgCls}`}>
-      {entries.map(([key, rawVal]) => {
-        const val = formatValue(rawVal)
-        const pinned = pinnedFields.includes(key)
-        return (
-          <div key={key} className="group flex items-start gap-2 py-0.5 min-h-[1.25rem]">
-            {/* Key + Action buttons side by side */}
-            <div className="flex items-center gap-0.5 flex-shrink-0 w-52">
-              <span
-                className={`text-xs font-mono truncate leading-5 ${keyClsCls}`}
-                title={key}
-              >
-                {key}
-              </span>
-              {/* Action buttons — visible on row hover */}
-              <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => val && onInclude(key, val)}
-                  disabled={!val}
-                  className={btnCls('text-emerald-500')}
-                  title="Добавить фильтр (включить)"
-                >
-                  <IconPlus cls="w-3 h-3" />
-                </button>
-                <button
-                  onClick={() => val && onExclude(key, val)}
-                  disabled={!val}
-                  className={btnCls('text-red-500')}
-                  title="Добавить фильтр (исключить)"
-                >
-                  <IconMinus cls="w-3 h-3" />
-                </button>
-                <button
-                  onClick={() => pinned ? onUnpin(key) : onPin(key)}
-                  className={`p-0.5 rounded cursor-pointer transition-colors ${
-                    pinned
-                      ? 'text-blue-500'
-                      : dark
-                      ? 'text-slate-700 hover:text-blue-400 hover:bg-slate-700'
-                      : 'text-gray-300 hover:text-blue-500 hover:bg-gray-200'
-                  }`}
-                  title={pinned ? 'Открепить колонку' : 'Закрепить как колонку'}
-                >
-                  <IconPin cls="w-3 h-3" />
-                </button>
-              </div>
-            </div>
+  function handleCopyJson() {
+    navigator.clipboard.writeText(JSON.stringify(Object.fromEntries(entries), null, 2)).then(() => {
+      setCopied(true)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
-            {/* Value */}
-            <span className={`text-xs font-mono flex-1 break-all leading-5 ${valCls}`}>
-              {val || <span className={dark ? 'text-slate-700' : 'text-gray-300'}>—</span>}
-            </span>
-          </div>
-        )
-      })}
+  // Кнопка toggle
+  function tabCls(active: boolean) {
+    return [
+      'px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none',
+      active
+        ? dark ? 'bg-slate-600 text-white' : 'bg-gray-200 text-gray-900'
+        : dark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+    ].join(' ')
+  }
+
+  return (
+    <div className={`border-t ${borderCls} ${bgCls}`}>
+
+      {/* Шапка: заголовок | toggle | copy */}
+      <div className={`flex items-center gap-3 px-4 py-1.5 border-b ${borderCls}`}>
+        <span className={`text-xs font-medium flex-shrink-0 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+          Детали записи
+        </span>
+
+        {/* Toggle ≡ Поля / { } JSON */}
+        <div className={[
+          'flex rounded overflow-hidden flex-shrink-0',
+          dark ? 'ring-1 ring-slate-600' : 'ring-1 ring-gray-300',
+        ].join(' ')}>
+          <button className={tabCls(view === 'fields')} onClick={() => setView('fields')}>
+            ≡ Поля
+          </button>
+          <button className={tabCls(view === 'json')} onClick={() => setView('json')}>
+            {'{ } JSON'}
+          </button>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Copy JSON */}
+        <button
+          onClick={handleCopyJson}
+          className={[
+            'flex items-center gap-1 text-xs px-2 h-6 rounded transition-colors cursor-pointer select-none border',
+            copied
+              ? 'text-emerald-500 border-emerald-600/50'
+              : dark
+                ? 'text-slate-400 border-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                : 'text-gray-500 border-gray-300 hover:text-gray-800 hover:bg-gray-100',
+          ].join(' ')}
+          title="Скопировать лог как JSON"
+        >
+          {copied ? (
+            <>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy JSON
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Тело: поля или JSON */}
+      {view === 'fields' ? (
+        <div className="px-4 py-3">
+          {entries.map(([key, rawVal]) => {
+            const val = formatValue(rawVal)
+            const pinned = pinnedFields.includes(key)
+            return (
+              <div key={key} className="group flex items-start gap-2 py-0.5 min-h-[1.25rem]">
+                <div className="flex items-center gap-0.5 flex-shrink-0 w-52">
+                  <span className={`text-xs font-mono truncate leading-5 ${keyClsCls}`} title={key}>
+                    {key}
+                  </span>
+                  <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => val && onInclude(key, val)}
+                      disabled={!val}
+                      className={fieldBtnCls('text-emerald-500')}
+                      title="Добавить фильтр (включить)"
+                    >
+                      <IconPlus cls="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => val && onExclude(key, val)}
+                      disabled={!val}
+                      className={fieldBtnCls('text-red-500')}
+                      title="Добавить фильтр (исключить)"
+                    >
+                      <IconMinus cls="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => pinned ? onUnpin(key) : onPin(key)}
+                      className={`p-0.5 rounded cursor-pointer transition-colors ${
+                        pinned
+                          ? 'text-blue-500'
+                          : dark
+                          ? 'text-slate-700 hover:text-blue-400 hover:bg-slate-700'
+                          : 'text-gray-300 hover:text-blue-500 hover:bg-gray-200'
+                      }`}
+                      title={pinned ? 'Открепить колонку' : 'Закрепить как колонку'}
+                    >
+                      <IconPin cls="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <span className={`text-xs font-mono flex-1 break-all leading-5 ${valCls}`}>
+                  {val || <span className={dark ? 'text-slate-700' : 'text-gray-300'}>—</span>}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <JsonView entries={entries} />
+      )}
     </div>
   )
 }
@@ -427,12 +550,25 @@ export default function LogTable({
         {/* Level header */}
         {hasLevel && (
           <div
-            className="relative flex-shrink-0 text-center"
+            className="group relative flex-shrink-0"
             style={{ width: getColWidth(colWidths, 'level') + 'px' }}
           >
-            <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+            <span className={`text-xs font-semibold uppercase tracking-wide block pr-5 ${headerText}`}>
               Уровень
             </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin('level') }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
             <ResizeHandle onResize={d => resizeCol('level', d)} dark={dark} />
           </div>
         )}
@@ -440,12 +576,25 @@ export default function LogTable({
         {/* AppName header */}
         {hasAppName && (
           <div
-            className="relative flex-shrink-0"
+            className="group relative flex-shrink-0"
             style={{ width: getColWidth(colWidths, 'appName') + 'px' }}
           >
-            <span className={`text-xs font-semibold uppercase tracking-wide ${headerText}`}>
+            <span className={`text-xs font-semibold uppercase tracking-wide block pr-5 ${headerText}`}>
               Приложение
             </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin('appName') }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
             <ResizeHandle onResize={d => resizeCol('appName', d)} dark={dark} />
           </div>
         )}
@@ -454,24 +603,52 @@ export default function LogTable({
         {customPinned.map(field => (
           <div
             key={field}
-            className="relative flex-shrink-0"
+            className="group relative flex-shrink-0"
             style={{ width: getColWidth(colWidths, field) + 'px' }}
           >
             <span
-              className={`text-xs font-semibold uppercase tracking-wide truncate block ${headerText}`}
+              className={`text-xs font-semibold uppercase tracking-wide truncate block pr-5 ${headerText}`}
               title={field}
             >
               {field}
             </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin(field) }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
             <ResizeHandle onResize={d => resizeCol(field, d)} dark={dark} />
           </div>
         ))}
 
         {/* Message header — flex-1, no resize handle needed */}
         {hasText && (
-          <span className={`text-xs font-semibold uppercase tracking-wide flex-1 ${headerText}`}>
-            Сообщение
-          </span>
+          <div className="group relative flex-1 min-w-0">
+            <span className={`text-xs font-semibold uppercase tracking-wide block pr-5 ${headerText}`}>
+              Сообщение
+            </span>
+            <button
+              onClick={e => { e.stopPropagation(); onUnpin('text') }}
+              className={[
+                'absolute right-2 top-1/2 -translate-y-1/2',
+                'w-4 h-4 flex items-center justify-center rounded',
+                'opacity-0 group-hover:opacity-100 transition-all duration-100 cursor-pointer',
+                dark ? 'text-slate-600 hover:text-slate-200 hover:bg-slate-700'
+                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200',
+              ].join(' ')}
+              title="Убрать колонку"
+            >
+              <IconX cls="w-2.5 h-2.5" />
+            </button>
+          </div>
         )}
       </div>
 

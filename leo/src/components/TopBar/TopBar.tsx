@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import type { UserConfig } from '@/types/config'
 import type { TimeRange } from '@/store/AppContext'
 import DateRangePicker from '@/components/DateRangePicker/DateRangePicker'
-import DataSourceToggle, { type DataSource } from './DataSourceToggle'
 import ProjectCodePicker from '@/components/ProjectCodePicker/ProjectCodePicker'
+import SavedSearchesPanel from './SavedSearchesPanel'
+import type { OpenSearchFilter, SavedSearchItemGetResult } from '@/types/api'
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -111,10 +112,13 @@ interface Props {
   luceneQuery: string
   isLoading: boolean
   activePresetMinutes: number | null
-  dataSource: DataSource
   availableProjectCodes: string[]
   selectedProjectCodes: string[]
   highlightProjectCodes?: boolean
+  savedSearches: SavedSearchItemGetResult[]
+  activeSearchName: string | null
+  currentFilters: OpenSearchFilter[]
+  currentPinnedFields: string[]
   onPreset: (minutes: number) => void
   onLuceneChange: (q: string) => void
   onLuceneSearch: () => void
@@ -122,8 +126,10 @@ interface Props {
   onExport: (format: 'txt' | 'csv') => void
   onThemeToggle: () => void
   onLogout: () => void
-  onDataSourceChange: (source: DataSource) => void
   onProjectCodesChange: (codes: string[]) => void
+  onSaveSearch: (name: string, onlyMy: boolean) => Promise<void>
+  onLoadSearch: (filters: OpenSearchFilter[], pinnedFields: string[]) => void
+  onDeleteSearch: (id: string) => Promise<void>
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -135,10 +141,13 @@ export default function TopBar({
   luceneQuery,
   isLoading,
   activePresetMinutes,
-  dataSource,
   availableProjectCodes,
   selectedProjectCodes,
   highlightProjectCodes,
+  savedSearches,
+  activeSearchName,
+  currentFilters,
+  currentPinnedFields,
   onPreset,
   onCustomRange,
   onLuceneChange,
@@ -146,8 +155,10 @@ export default function TopBar({
   onExport,
   onThemeToggle,
   onLogout,
-  onDataSourceChange,
   onProjectCodesChange,
+  onSaveSearch,
+  onLoadSearch,
+  onDeleteSearch,
 }: Props) {
   const [exportOpen, setExportOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -340,6 +351,20 @@ export default function TopBar({
         {/* Spacer — раздвигает левую и правую группы */}
         <div className="flex-1" />
 
+        {/* Saved Searches Panel */}
+        <SavedSearchesPanel
+          dark={dark}
+          activeSearchName={activeSearchName}
+          currentFilters={currentFilters}
+          currentPinnedFields={currentPinnedFields}
+          savedSearches={savedSearches}
+          isLoading={isLoading}
+          onLoad={onLoadSearch}
+          onSave={onSaveSearch}
+          onDelete={onDeleteSearch}
+        />
+        {divider}
+
         {/* Project code picker */}
         {availableProjectCodes.length > 0 && (
           <>
@@ -353,18 +378,6 @@ export default function TopBar({
             {divider}
           </>
         )}
-
-        {divider}
-
-        {/* Data source toggle: OpenSearch / ClickHouse */}
-        <DataSourceToggle
-          value={dataSource}
-          onChange={onDataSourceChange}
-          dark={dark}
-          disabled={isLoading}
-        />
-
-        {divider}
 
         {/* Theme toggle */}
         <button

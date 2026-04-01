@@ -39,6 +39,7 @@ export interface UserConfig {
 export interface LoggingConfig {
   maxLogsPerPage: number
   histogramBuckets: number
+  topNLimit: number
 }
 
 export interface UiConfig {
