@@ -97,5 +97,9 @@ export async function apiFetch<T>(
   // 204 No Content
   if (response.status === 204) return undefined as T
 
-  return response.json() as Promise<T>
+  // snowLogId exceeds Number.MAX_SAFE_INTEGER and gets silently rounded by JSON.parse.
+  // Pre-process the raw text to convert it to a string before parsing.
+  const text = await response.text()
+  const safe = text.replace(/"snowLogId"\s*:\s*(\d+)/g, '"snowLogId": "$1"')
+  return JSON.parse(safe) as T
 }
