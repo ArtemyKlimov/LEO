@@ -23,5 +23,11 @@ export function flattenLog(log: Record<string, unknown>): LogEntry {
     }
   }
 
+  // _id is used for React keys and deduplication in appendLogs.
+  // The API v2 response has no _id field — derive it from snowLogId.
+  if (!result._id && result.snowLogId != null) {
+    result._id = String(result.snowLogId)
+  }
+
   return result as LogEntry
 }

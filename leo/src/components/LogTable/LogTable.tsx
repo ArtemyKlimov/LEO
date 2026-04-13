@@ -488,6 +488,12 @@ export default function LogTable({
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COL_WIDTHS)
 
+  // Refs keep the latest values without triggering observer recreation
+  const isLoadingMoreRef = useRef(isLoadingMore)
+  isLoadingMoreRef.current = isLoadingMore
+  const onLoadMoreRef = useRef(onLoadMore)
+  onLoadMoreRef.current = onLoadMore
+
   const resizeCol = useCallback((col: string, delta: number) => {
     setColWidths(prev => ({
       ...prev,
@@ -495,20 +501,23 @@ export default function LogTable({
     }))
   }, [])
 
-  // Infinite scroll via IntersectionObserver
+  // Infinite scroll via IntersectionObserver.
+  // Only depends on hasMore — callback and loading state are read via refs
+  // to prevent the observer from being recreated (and firing again) on every
+  // successful page load.
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !hasMore) return
 
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && !isLoadingMore) onLoadMore()
+        if (entries[0].isIntersecting && !isLoadingMoreRef.current) onLoadMoreRef.current()
       },
       { threshold: 0.1 },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, isLoadingMore, onLoadMore])
+  }, [hasMore])
 
   const borderCls  = dark ? 'border-slate-700' : 'border-gray-200'
   const headerBg   = dark ? 'bg-slate-800'     : 'bg-gray-100'
