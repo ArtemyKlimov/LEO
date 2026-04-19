@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import type { AppConfig, UserConfig } from '@/types/config'
-import type { OpenSearchFilter, LogEntry, HistogramBucket, Cursor, ClickHouseResponse, ClickHouseAggregationResponse } from '@/types/api'
+import type { OpenSearchFilter, LogEntry, HistogramBucket, Cursor, ClickHouseResponse } from '@/types/api'
 import { flattenLog } from '@/utils/flattenLog'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ export interface AppActions {
   setLogData: (response: ClickHouseResponse) => void
   appendLogs: (response: ClickHouseResponse) => void
   resetLogData: () => void
-  updateHistogram: (response: ClickHouseAggregationResponse) => void
+  updateHistogram: (buckets: HistogramBucket[]) => void
   // Project codes
   setAvailableProjectCodes: (codes: string[]) => void
   setSelectedProjectCodes: (codes: string[]) => void
@@ -160,12 +160,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCursor(null)
   }, [])
 
-  const updateHistogram = useCallback((response: ClickHouseAggregationResponse) => {
-    const newBuckets = response.aggregationResult?.buckets
-    if (newBuckets && newBuckets.length > 0) {
-      setHistogramBuckets(newBuckets)
-      // Derive totalCount from histogram buckets (sum of all bucket docCounts)
-      setTotalCount(newBuckets.reduce((sum, b) => sum + b.docCount, 0))
+  const updateHistogram = useCallback((buckets: HistogramBucket[]) => {
+    if (buckets.length > 0) {
+      setHistogramBuckets(buckets)
+      setTotalCount(buckets.reduce((sum, b) => sum + b.docCount, 0))
     }
   }, [])
 

@@ -129,21 +129,44 @@ export interface ClickHouseResponse {
   cursor?: Record<string, Cursor>
 }
 
+// ─── Aggregation request types (swagger v14) ──────────────────────────────────
+
+export interface GroupBy {
+  field: string
+  size?: number
+}
+
+export interface LogStatRequest {
+  timeInterval?: DateHistogramInterval
+  groupBy?: GroupBy
+}
+
 export interface ClickHouseAggregationRequest {
-  aggregationType: 'histogram' | 'top-n'
-  aggregationAttributes?: {
-    fieldName?: string
-    limit?: number
-    dateHistogramInterval?: DateHistogramInterval
-  }
+  aggregationType: 'time-histogram' | 'top-n'
+  aggregationAttributes?: LogStatRequest
   filters: LogQueryFilters
 }
 
+// ─── Aggregation response types (swagger v14) ─────────────────────────────────
+
+export interface MetaData {
+  interval?: string
+  groupFields?: string[]
+  topField?: string
+  limit?: number
+}
+
+export interface Bucket {
+  timestampMs?: number
+  timestamp?: string
+  groups?: Record<string, unknown>
+  metrics?: Record<string, unknown>
+}
+
 export interface ClickHouseAggregationResponse {
-  aggregationResult?: {
-    interval?: string
-    buckets?: HistogramBucket[]
-  }
+  aggregationType?: 'time-histogram' | 'top-n'
+  metadata?: MetaData
+  buckets?: Bucket[]
 }
 
 // ─── UI Fields ───────────────────────────────────────────────────────────────

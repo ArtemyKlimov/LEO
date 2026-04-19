@@ -14,6 +14,8 @@ import type {
   NewSavedSearchRequest,
   SavedSearchGetResult,
   SavedSearchCreateResult,
+  HistogramBucket,
+  Bucket,
 } from '@/types/api'
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
@@ -36,7 +38,40 @@ export async function fetchLogs(
 // ─── Histogram ────────────────────────────────────────────────────────────────
 
 /**
- * POST /api/v2/aggregation (aggregationType: histogram)
+ * Трансформирует плоский массив Bucket (swagger v14) в HistogramBucket[].
+ * Каждый входной Bucket — одна комбинация (timestampMs × groupField-значение).
+ * На выходе — один HistogramBucket на временной слот с опциональным массивом parts.
+ */
+function flatBucketsToHistogram(
+  buckets: Bucket[],
+  groupField: string | null,
+): HistogramBucket[] {
+  const map = new Map<number, HistogramBucket>()
+  for (const b of buckets) {
+    const ts = b.timestampMs ?? 0
+    const count = (b.metrics?.['count'] as number) ?? 0
+    const existing = map.get(ts)
+    if (existing) {
+      existing.docCount += count
+      if (groupField && b.groups && existing.parts) {
+        existing.parts.push({ value: String(b.groups[groupField] ?? ''), docCount: count })
+      }
+    } else {
+      map.set(ts, {
+        docCount: count,
+        key: ts,
+        keyAsString: b.timestamp ?? new Date(ts).toISOString(),
+        parts: groupField && b.groups
+          ? [{ value: String(b.groups[groupField] ?? ''), docCount: count }]
+          : undefined,
+      })
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.key - b.key)
+}
+
+/**
+ * POST /api/v2/aggregation (aggregationType: time-histogram)
  * Получение данных гистограммы отдельным запросом.
  * @param breakdown - поле для разбивки (level/appName), null = без разбивки
  */
@@ -46,18 +81,19 @@ export async function fetchHistogram(
   breakdown: string | null,
   user: UserConfig,
   config: AppConfig,
-): Promise<ClickHouseAggregationResponse> {
-  return apiFetch<ClickHouseAggregationResponse>('/api/v2/aggregation', user, config, {
+): Promise<HistogramBucket[]> {
+  const response = await apiFetch<ClickHouseAggregationResponse>('/api/v2/aggregation', user, config, {
     method: 'POST',
     body: {
-      aggregationType: 'histogram',
+      aggregationType: 'time-histogram',
       aggregationAttributes: {
-        dateHistogramInterval: histogramInterval,
-        ...(breakdown && { fieldName: breakdown }),
+        timeInterval: histogramInterval,
+        ...(breakdown && { groupBy: { field: breakdown, size: config.logging.topNLimit } }),
       },
       filters,
     },
   })
+  return flatBucketsToHistogram(response.buckets ?? [], breakdown)
 }
 
 // ─── Top values (sidebar + filter builder) ────────────────────────────────────
@@ -77,15 +113,18 @@ export async function fetchTopValues(
     method: 'POST',
     body: {
       aggregationType: 'top-n',
-      aggregationAttributes: { fieldName, limit },
+      aggregationAttributes: { groupBy: { field: fieldName, size: limit } },
       filters,
     },
   })
-  const buckets = response.aggregationResult?.buckets ?? []
+  const buckets = response.buckets ?? []
   return {
     fieldName,
-    totalDocCount: buckets.reduce((sum, b) => sum + b.docCount, 0),
-    buckets: buckets.map(b => ({ value: b.keyAsString, docCount: b.docCount })),
+    totalDocCount: buckets.reduce((sum, b) => sum + ((b.metrics?.['count'] as number) ?? 0), 0),
+    buckets: buckets.map(b => ({
+      value: String(b.groups?.[fieldName] ?? ''),
+      docCount: (b.metrics?.['count'] as number) ?? 0,
+    })),
   }
 }
 

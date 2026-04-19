@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
@@ -43,6 +43,8 @@ export default function LogViewerPage() {
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [activeBreakdown, setActiveBreakdown] = useState<'level' | 'appName' | null>(null)
+
+  const initialFetchDone = useRef(false)
 
   // ─── UI fields (sidebar) ─────────────────────────────────────────────────────
 
@@ -92,6 +94,20 @@ export default function LogViewerPage() {
     }
     return merged
   }, [apiFields, fieldFrequency])
+
+  // ─── Auto-fetch on mount ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (initialFetchDone.current || !currentUser || !config || needsProjectSelection) return
+    initialFetchDone.current = true
+    const to   = new Date()
+    const from = new Date(to.getTime() - 15 * 60_000)
+    setActivePresetMinutes(15)
+    setTimeRange({ from, to, label: PRESET_LABELS[15] })
+    doFetch(from, to, luceneQuery, 'auto')
+  // doFetch стабилен через useCallback; luceneQuery на старте всегда пустой
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, config, needsProjectSelection])
 
   // ─── Core fetch ─────────────────────────────────────────────────────────────
 
