@@ -417,7 +417,7 @@ export default function LogViewerPage() {
     if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, newFilters)
   }
 
-  async function handleFetchFilterValues(fieldName: string): Promise<FieldValuesBucket[]> {
+  async function handleFetchFilterValues(fieldName: string, searchText?: string): Promise<FieldValuesBucket[]> {
     if (!currentUser || !config || !timeRange) return []
     const projectCodeFilter: OpenSearchFilter[] =
       selectedProjectCodes.length > 0
@@ -426,7 +426,7 @@ export default function LogViewerPage() {
     const allFieldFilters = [...filters, ...projectCodeFilter]
     const queryFilters = buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, allFieldFilters)
     try {
-      const response = await fetchTopValues(fieldName, 50, queryFilters, currentUser, config)
+      const response = await fetchTopValues(fieldName, 50, queryFilters, currentUser, config, searchText)
       return response.buckets ?? []
     } catch {
       return []

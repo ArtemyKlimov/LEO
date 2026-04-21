@@ -1,4 +1,4 @@
-import { useState, useRef, type KeyboardEvent } from 'react'
+import { useState, useRef, useCallback, type KeyboardEvent } from 'react'
 import type { Field, FieldValuesBucket, FilterOperator, OpenSearchFilter } from '@/types/api'
 import DateTimePicker from './DateTimePicker'
 
@@ -55,7 +55,7 @@ interface Props {
   dark: boolean
   fields: Field[]
   onAdd: (filter: OpenSearchFilter) => void
-  onFetchFieldValues?: (fieldName: string) => Promise<FieldValuesBucket[]>
+  onFetchFieldValues?: (fieldName: string, searchText?: string) => Promise<FieldValuesBucket[]>
 }
 
 // ─── FilterBuilder ────────────────────────────────────────────────────────────
@@ -75,6 +75,12 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
 
+  // Search-by-text state (triggered when 3+ chars typed with no top-N matches)
+  const [searchResults, setSearchResults] = useState<FieldValuesBucket[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchMode, setSearchMode] = useState(false)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const selectedField = fields.find(f => f.name === fieldName)
   const availableOperators = getOperatorsForField(selectedField)
 
@@ -91,7 +97,16 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
   const filteredSuggestions = suggestions.filter(s =>
     s.value.toLowerCase().includes(valueInput.toLowerCase()),
   )
-  const canSuggest = hasValue && showSuggestions && (suggestionsLoading || filteredSuggestions.length > 0)
+  const displaySuggestions = searchMode ? searchResults : filteredSuggestions
+  const isAnyLoading = suggestionsLoading || searchLoading
+  const canSuggest = hasValue && showSuggestions && (isAnyLoading || displaySuggestions.length > 0)
+
+  function resetSearch() {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    setSearchResults([])
+    setSearchLoading(false)
+    setSearchMode(false)
+  }
 
   function reset() {
     setFieldName('')
@@ -101,6 +116,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
     setSuggestions([])
     setShowSuggestions(false)
     setActiveIndex(-1)
+    resetSearch()
   }
 
   function handleOpen() {
@@ -121,6 +137,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
     setSuggestions([])
     setShowSuggestions(false)
     setActiveIndex(-1)
+    resetSearch()
   }
 
   // При выборе оператора — подгружаем подсказки, если применимо
@@ -129,6 +146,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
     setValueInput('')
     setTags([])
     setActiveIndex(-1)
+    resetSearch()
 
     if (!op || NO_VALUE_OPERATORS.has(op as FilterOperator)) {
       setShowSuggestions(false)
@@ -152,6 +170,35 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
       setSuggestions(result)
     } catch { /* silent */ }
     finally { setSuggestionsLoading(false) }
+  }
+
+  const triggerSearch = useCallback((value: string) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    if (!onFetchFieldValues || !fieldName) return
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const results = await onFetchFieldValues(fieldName, value)
+        setSearchResults(results)
+      } catch { /* silent */ }
+      finally { setSearchLoading(false) }
+    }, 300)
+  }, [onFetchFieldValues, fieldName])
+
+  function handleValueInputChange(value: string) {
+    setValueInput(value)
+    setActiveIndex(-1)
+    if (value.length >= 3) {
+      const matches = suggestions.filter(s => s.value.toLowerCase().includes(value.toLowerCase()))
+      if (matches.length === 0) {
+        setSearchMode(true)
+        setShowSuggestions(true)
+        triggerSearch(value)
+        return
+      }
+    }
+    // Back to top-N mode
+    if (searchMode) resetSearch()
   }
 
   function handleAddTag(raw: string) {
@@ -198,7 +245,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
     }
     if (e.key === 'ArrowDown' && canSuggest) {
       e.preventDefault()
-      setActiveIndex(i => Math.min(i + 1, filteredSuggestions.length - 1))
+      setActiveIndex(i => Math.min(i + 1, displaySuggestions.length - 1))
       return
     }
     if (e.key === 'ArrowUp' && canSuggest) {
@@ -209,7 +256,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
     if (e.key === 'Enter') {
       if (activeIndex >= 0 && canSuggest) {
         e.preventDefault()
-        handleSuggestionSelect(filteredSuggestions[activeIndex].value)
+        handleSuggestionSelect(displaySuggestions[activeIndex].value)
       } else {
         handleSubmit()
       }
@@ -367,10 +414,10 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
                     ref={tagInputRef}
                     type="text"
                     value={valueInput}
-                    onChange={e => { setValueInput(e.target.value); setActiveIndex(-1) }}
+                    onChange={e => handleValueInputChange(e.target.value)}
                     onKeyDown={handleTagKeyDown}
                     onBlur={handleTagInputBlur}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    onFocus={() => (suggestions.length > 0 || searchMode) && setShowSuggestions(true)}
                     placeholder={tags.length === 0 ? 'Значение, Enter — добавить' : ''}
                     className={[
                       'text-xs outline-none bg-transparent flex-1 min-w-[80px]',
@@ -392,7 +439,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
                   ref={valueInputRef}
                   type={selectedField?.controlType === 'int' ? 'number' : 'text'}
                   value={valueInput}
-                  onChange={e => { setValueInput(e.target.value); setActiveIndex(-1) }}
+                  onChange={e => handleValueInputChange(e.target.value)}
                   onKeyDown={handleValueKeyDown}
                   onFocus={() => setShowSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
@@ -411,7 +458,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
                     ? 'bg-slate-800 border-slate-600 shadow-xl shadow-black/40'
                     : 'bg-white border-gray-200 shadow-lg',
                 ].join(' ')}>
-                  {suggestionsLoading ? (
+                  {isAnyLoading ? (
                     <div className="flex items-center gap-2 px-3 py-2 text-xs">
                       <svg className={['w-3.5 h-3.5 animate-spin flex-shrink-0', dark ? 'text-slate-400' : 'text-gray-400'].join(' ')} viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -419,7 +466,7 @@ export default function FilterBuilder({ dark, fields, onAdd, onFetchFieldValues 
                       </svg>
                       <span className={dark ? 'text-slate-400' : 'text-gray-400'}>Загрузка значений...</span>
                     </div>
-                  ) : filteredSuggestions.map((s, i) => (
+                  ) : displaySuggestions.map((s, i) => (
                     <button
                       key={s.value}
                       type="button"

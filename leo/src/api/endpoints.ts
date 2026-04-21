@@ -109,13 +109,23 @@ export async function fetchTopValues(
   filters: LogQueryFilters,
   user: UserConfig,
   config: AppConfig,
+  searchText?: string,
 ): Promise<FieldValuesResponse> {
+  const effectiveFilters: LogQueryFilters = searchText
+    ? {
+        ...filters,
+        fieldFilters: [
+          ...(filters.fieldFilters ?? []),
+          { attributeName: fieldName, filterOperator: 'CONTAINS', attributeValue: [searchText] },
+        ],
+      }
+    : filters
   const response = await apiFetch<ClickHouseAggregationResponse>('/api/v2/aggregation', user, config, {
     method: 'POST',
     body: {
       aggregationType: 'top-n',
       aggregationAttributes: { groupBy: { field: fieldName, size: limit } },
-      filters,
+      filters: effectiveFilters,
     },
   })
   const buckets = response.buckets ?? []
