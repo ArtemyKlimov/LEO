@@ -88,6 +88,7 @@ export async function fetchHistogram(
       aggregationType: 'time-histogram',
       aggregationAttributes: {
         timeInterval: histogramInterval,
+        withEmptyBuckets: true,
         ...(breakdown && { groupBy: { field: breakdown, size: config.logging.topNLimit } }),
       },
       filters,

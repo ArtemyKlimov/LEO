@@ -138,6 +138,7 @@ export interface GroupBy {
 
 export interface LogStatRequest {
   timeInterval?: DateHistogramInterval
+  withEmptyBuckets?: boolean
   groupBy?: GroupBy
 }
 
