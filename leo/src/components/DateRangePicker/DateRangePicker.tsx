@@ -51,7 +51,7 @@ const DAY_RU = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
 
 // ─── TimeInput ────────────────────────────────────────────────────────────────
 
-interface TimeVal { h: string; m: string; s: string }
+interface TimeVal { h: string; m: string; s: string; ms: string }
 
 interface TimeInputProps {
   dark: boolean
@@ -64,12 +64,12 @@ interface TimeInputProps {
 }
 
 function TimeInput({ dark, value, onChange, label, onStartOfDay, onEndOfDay, onNow }: TimeInputProps) {
-  const inputCls = [
-    'w-10 h-8 text-center font-mono text-xs rounded border outline-none transition-colors',
-    dark
-      ? 'bg-slate-900 border-slate-600 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 hover:border-slate-500'
-      : 'bg-gray-50 border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400',
-  ].join(' ')
+  const inputColorCls = dark
+    ? 'bg-slate-900 border-slate-600 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 hover:border-slate-500'
+    : 'bg-gray-50 border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 hover:border-gray-400'
+
+  const inputCls   = `w-10 h-8 text-center font-mono text-xs rounded border outline-none transition-colors ${inputColorCls}`
+  const msInputCls = `w-12 h-8 text-center font-mono text-xs rounded border outline-none transition-colors ${inputColorCls}`
 
   const btnCls = [
     'text-xs px-2 h-6 rounded border cursor-pointer transition-colors whitespace-nowrap',
@@ -78,28 +78,32 @@ function TimeInput({ dark, value, onChange, label, onStartOfDay, onEndOfDay, onN
       : 'text-gray-500 hover:text-gray-700 bg-white hover:bg-gray-100 border-gray-300',
   ].join(' ')
 
-  const sep = <span className={`font-mono ${dark ? 'text-slate-500' : 'text-gray-400'} mx-0.5 select-none`}>:</span>
+  const colonSep = <span className={`font-mono ${dark ? 'text-slate-500' : 'text-gray-400'} mx-0.5 select-none`}>:</span>
+  const dotSep   = <span className={`font-mono ${dark ? 'text-slate-500' : 'text-gray-400'} mx-0.5 select-none`}>.</span>
 
-  function handleKey(field: 'h' | 'm' | 's', e: React.KeyboardEvent<HTMLInputElement>) {
-    const max = field === 'h' ? 23 : 59
+  function handleKey(field: 'h' | 'm' | 's' | 'ms', e: React.KeyboardEvent<HTMLInputElement>) {
+    const max = field === 'h' ? 23 : field === 'ms' ? 999 : 59
+    const pad = field === 'ms' ? 3 : 2
     const cur = parseInt(value[field]) || 0
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      onChange({ ...value, [field]: String(Math.min(max, cur + 1)).padStart(2, '0') })
+      onChange({ ...value, [field]: String(Math.min(max, cur + 1)).padStart(pad, '0') })
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      onChange({ ...value, [field]: String(Math.max(0, cur - 1)).padStart(2, '0') })
+      onChange({ ...value, [field]: String(Math.max(0, cur - 1)).padStart(pad, '0') })
     }
   }
 
-  function handleChange(field: 'h' | 'm' | 's', raw: string) {
-    onChange({ ...value, [field]: raw.replace(/\D/g, '').slice(0, 2) })
+  function handleChange(field: 'h' | 'm' | 's' | 'ms', raw: string) {
+    const limit = field === 'ms' ? 3 : 2
+    onChange({ ...value, [field]: raw.replace(/\D/g, '').slice(0, limit) })
   }
 
-  function handleBlur(field: 'h' | 'm' | 's') {
-    const max = field === 'h' ? 23 : 59
+  function handleBlur(field: 'h' | 'm' | 's' | 'ms') {
+    const max = field === 'h' ? 23 : field === 'ms' ? 999 : 59
+    const pad = field === 'ms' ? 3 : 2
     const v = Math.min(max, Math.max(0, parseInt(value[field]) || 0))
-    onChange({ ...value, [field]: String(v).padStart(2, '0') })
+    onChange({ ...value, [field]: String(v).padStart(pad, '0') })
   }
 
   return (
@@ -108,7 +112,7 @@ function TimeInput({ dark, value, onChange, label, onStartOfDay, onEndOfDay, onN
       <div className="flex items-center">
         {(['h','m','s'] as const).map((field, i) => (
           <span key={field} className="flex items-center">
-            {i > 0 && sep}
+            {i > 0 && colonSep}
             <input
               type="text"
               inputMode="numeric"
@@ -121,6 +125,19 @@ function TimeInput({ dark, value, onChange, label, onStartOfDay, onEndOfDay, onN
             />
           </span>
         ))}
+        <span className="flex items-center">
+          {dotSep}
+          <input
+            type="text"
+            inputMode="numeric"
+            value={value.ms}
+            maxLength={3}
+            onChange={e => handleChange('ms', e.target.value)}
+            onKeyDown={e => handleKey('ms', e)}
+            onBlur={() => handleBlur('ms')}
+            className={msInputCls}
+          />
+        </span>
       </div>
       <div className="flex items-center gap-1.5 flex-wrap">
         {onStartOfDay && <button onClick={onStartOfDay} className={btnCls}>Начало дня</button>}
@@ -248,15 +265,20 @@ export default function DateRangePicker({
   const toNum = (d: Date | undefined, fn: (d: Date) => number, def: string) =>
     d ? String(fn(d)).padStart(2, '0') : def
 
+  const toNum3 = (d: Date | undefined, fn: (d: Date) => number, def: string) =>
+    d ? String(fn(d)).padStart(3, '0') : def
+
   const [fromTime, setFromTime] = useState<TimeVal>({
-    h: toNum(initialFrom, d => d.getHours(), '00'),
-    m: toNum(initialFrom, d => d.getMinutes(), '00'),
-    s: toNum(initialFrom, d => d.getSeconds(), '00'),
+    h:  toNum(initialFrom, d => d.getHours(), '00'),
+    m:  toNum(initialFrom, d => d.getMinutes(), '00'),
+    s:  toNum(initialFrom, d => d.getSeconds(), '00'),
+    ms: toNum3(initialFrom, d => d.getMilliseconds(), '000'),
   })
   const [toTime, setToTime] = useState<TimeVal>({
-    h: toNum(initialTo, d => d.getHours(), '23'),
-    m: toNum(initialTo, d => d.getMinutes(), '59'),
-    s: toNum(initialTo, d => d.getSeconds(), '59'),
+    h:  toNum(initialTo, d => d.getHours(), '23'),
+    m:  toNum(initialTo, d => d.getMinutes(), '59'),
+    s:  toNum(initialTo, d => d.getSeconds(), '59'),
+    ms: toNum3(initialTo, d => d.getMilliseconds(), '999'),
   })
 
   // Right month is always viewMonth + 1
@@ -292,9 +314,10 @@ export default function DateRangePicker({
   function buildDate(d: Date, t: TimeVal): Date {
     return new Date(
       d.getFullYear(), d.getMonth(), d.getDate(),
-      parseInt(t.h) || 0,
-      parseInt(t.m) || 0,
-      parseInt(t.s) || 0,
+      parseInt(t.h)  || 0,
+      parseInt(t.m)  || 0,
+      parseInt(t.s)  || 0,
+      parseInt(t.ms) || 0,
     )
   }
 
@@ -313,8 +336,8 @@ export default function DateRangePicker({
 
   function formatFieldDisplay(d: Date | null, t: TimeVal): string {
     if (!d) return '— не выбрано —'
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}  ${t.h.padStart(2,'0')}:${t.m.padStart(2,'0')}:${t.s.padStart(2,'0')}`
+    const pad2 = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}  ${t.h.padStart(2,'0')}:${t.m.padStart(2,'0')}:${t.s.padStart(2,'0')}.${t.ms.padStart(3,'0')}`
   }
 
   function setQuickRange(fromD: Date, toD: Date, fromT: TimeVal, toT: TimeVal) {
@@ -423,10 +446,10 @@ export default function DateRangePicker({
         <div className="flex-1 px-4 py-3">
           <TimeInput
             dark={dark} value={fromTime} onChange={setFromTime} label="Время «С»"
-            onStartOfDay={() => setFromTime({ h:'00', m:'00', s:'00' })}
+            onStartOfDay={() => setFromTime({ h:'00', m:'00', s:'00', ms:'000' })}
             onNow={() => {
               const n = new Date()
-              setFromTime({ h: String(n.getHours()).padStart(2,'0'), m: String(n.getMinutes()).padStart(2,'0'), s: String(n.getSeconds()).padStart(2,'0') })
+              setFromTime({ h: String(n.getHours()).padStart(2,'0'), m: String(n.getMinutes()).padStart(2,'0'), s: String(n.getSeconds()).padStart(2,'0'), ms: String(n.getMilliseconds()).padStart(3,'0') })
             }}
           />
         </div>
@@ -434,10 +457,10 @@ export default function DateRangePicker({
         <div className="flex-1 px-4 py-3">
           <TimeInput
             dark={dark} value={toTime} onChange={setToTime} label="Время «По»"
-            onEndOfDay={() => setToTime({ h:'23', m:'59', s:'59' })}
+            onEndOfDay={() => setToTime({ h:'23', m:'59', s:'59', ms:'999' })}
             onNow={() => {
               const n = new Date()
-              setToTime({ h: String(n.getHours()).padStart(2,'0'), m: String(n.getMinutes()).padStart(2,'0'), s: String(n.getSeconds()).padStart(2,'0') })
+              setToTime({ h: String(n.getHours()).padStart(2,'0'), m: String(n.getMinutes()).padStart(2,'0'), s: String(n.getSeconds()).padStart(2,'0'), ms: String(n.getMilliseconds()).padStart(3,'0') })
             }}
           />
         </div>
@@ -449,7 +472,7 @@ export default function DateRangePicker({
         <button
           onClick={() => {
             const d = startOfDay(new Date())
-            setQuickRange(d, d, { h:'00',m:'00',s:'00' }, { h:'23',m:'59',s:'59' })
+            setQuickRange(d, d, { h:'00',m:'00',s:'00',ms:'000' }, { h:'23',m:'59',s:'59',ms:'999' })
           }}
           className={quickBtn}
         >Сегодня</button>
@@ -457,7 +480,7 @@ export default function DateRangePicker({
           onClick={() => {
             const d = startOfDay(new Date())
             d.setDate(d.getDate() - 1)
-            setQuickRange(d, d, { h:'00',m:'00',s:'00' }, { h:'23',m:'59',s:'59' })
+            setQuickRange(d, d, { h:'00',m:'00',s:'00',ms:'000' }, { h:'23',m:'59',s:'59',ms:'999' })
           }}
           className={quickBtn}
         >Вчера</button>
@@ -466,7 +489,7 @@ export default function DateRangePicker({
             const n = new Date()
             const d = startOfDay(n)
             const hh = String(n.getHours()).padStart(2,'0')
-            setQuickRange(d, d, { h:hh, m:'00', s:'00' }, { h:hh, m:'59', s:'59' })
+            setQuickRange(d, d, { h:hh, m:'00', s:'00', ms:'000' }, { h:hh, m:'59', s:'59', ms:'999' })
           }}
           className={quickBtn}
         >Этот час</button>
