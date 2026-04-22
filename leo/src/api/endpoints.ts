@@ -38,6 +38,18 @@ export async function fetchLogs(
 // ─── Histogram ────────────────────────────────────────────────────────────────
 
 /**
+ * timestampMs has second-level precision and is sometimes in microseconds when
+ * the backend sends a 1ms interval. Prefer parsing the ISO timestamp string.
+ */
+function bucketKey(b: Bucket): number {
+  if (b.timestamp) {
+    const ms = new Date(b.timestamp).getTime()
+    if (!isNaN(ms)) return ms
+  }
+  return b.timestampMs ?? 0
+}
+
+/**
  * Трансформирует плоский массив Bucket (swagger v14) в HistogramBucket[].
  * Каждый входной Bucket — одна комбинация (timestampMs × groupField-значение).
  * На выходе — один HistogramBucket на временной слот с опциональным массивом parts.
@@ -48,7 +60,7 @@ function flatBucketsToHistogram(
 ): HistogramBucket[] {
   const map = new Map<number, HistogramBucket>()
   for (const b of buckets) {
-    const ts = b.timestampMs ?? 0
+    const ts = bucketKey(b)
     const count = (b.metrics?.['count'] as number) ?? 0
     const existing = map.get(ts)
     if (existing) {
