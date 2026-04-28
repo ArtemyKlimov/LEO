@@ -5,6 +5,7 @@ server:
     protocol: http             # http/https - протокол для запросов к backend
     host: localhost            # Хост backend
     port: 8080                 # Порт backend
+    insecure: false            # true — отключить проверку TLS-сертификата (для самоподписанных)
 
 auth:
   jwt:

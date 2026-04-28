@@ -27,14 +27,14 @@ function serveRootConfig(): Plugin {
 }
 
 // Читаем настройки сервера из config.yaml
-function readServerConfig(): { frontendPort: number; backendUrl: string } {
+function readServerConfig(): { frontendPort: number; backendUrl: string; insecure: boolean } {
   try {
     const configPath = resolve(__dirname, '../config.yaml')
     const raw = fs.readFileSync(configPath, 'utf-8')
     const cfg = yaml.load(raw) as {
       server?: {
         port?: number
-        backend?: { protocol?: string; host?: string; port?: number }
+        backend?: { protocol?: string; host?: string; port?: number; insecure?: boolean }
       }
     }
     const s = cfg?.server
@@ -44,13 +44,14 @@ function readServerConfig(): { frontendPort: number; backendUrl: string } {
       backendUrl: b?.host && b?.port
         ? `${b.protocol ?? 'http'}://${b.host}:${b.port}`
         : 'http://localhost:8080',
+      insecure: b?.insecure ?? false,
     }
   } catch {
-    return { frontendPort: 5173, backendUrl: 'http://localhost:8080' }
+    return { frontendPort: 5173, backendUrl: 'http://localhost:8080', insecure: false }
   }
 }
 
-const { frontendPort, backendUrl } = readServerConfig()
+const { frontendPort, backendUrl, insecure } = readServerConfig()
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), serveRootConfig()],
@@ -65,6 +66,7 @@ export default defineConfig({
       '/api': {
         target: backendUrl,
         changeOrigin: true,
+        secure: !insecure,
         configure: (proxy) => {
           // Spring требует строго "application/json" без charset и параметров.
           // http-proxy может добавлять ";charset=UTF-8", поэтому нормализуем здесь.
