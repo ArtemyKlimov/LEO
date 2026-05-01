@@ -12,8 +12,11 @@ import type {
   FieldValuesResponse,
   UserData,
   NewSavedSearchRequest,
+  EditSavedSearchRequest,
   SavedSearchGetResult,
   SavedSearchCreateResult,
+  SavedSearchEditResult,
+  SavedSearchesTagsGetResult,
   HistogramBucket,
   Bucket,
 } from '@/types/api'
@@ -199,19 +202,24 @@ export async function fetchProjectCodes(
 // ─── Saved Searches ───────────────────────────────────────────────────────────
 
 /**
- * GET /api/v2/hot/saved-searches
+ * GET /api/v2/saved-searches
  * Список сохранённых поисков, видимых текущему пользователю.
  */
 export async function fetchSavedSearches(
   user: UserConfig,
   config: AppConfig,
+  params: { needFilters: boolean; name?: string; tags?: string[] },
   signal?: AbortSignal,
 ): Promise<SavedSearchGetResult> {
-  return apiFetch<SavedSearchGetResult>('/api/v2/hot/saved-searches', user, config, { signal })
+  const query = new URLSearchParams()
+  query.set('needFilters', String(params.needFilters))
+  if (params.name) query.set('name', params.name)
+  if (params.tags?.length) params.tags.forEach(t => query.append('tags', t))
+  return apiFetch<SavedSearchGetResult>(`/api/v2/saved-searches?${query}`, user, config, { signal })
 }
 
 /**
- * POST /api/v2/hot/saved-searches
+ * POST /api/v2/saved-searches
  * Создать новый сохранённый поиск.
  */
 export async function createSavedSearch(
@@ -219,23 +227,54 @@ export async function createSavedSearch(
   user: UserConfig,
   config: AppConfig,
 ): Promise<SavedSearchCreateResult> {
-  return apiFetch<SavedSearchCreateResult>('/api/v2/hot/saved-searches', user, config, {
+  return apiFetch<SavedSearchCreateResult>('/api/v2/saved-searches', user, config, {
     method: 'POST', body: request,
   })
 }
 
 /**
- * DELETE /api/v2/hot/saved-searches
- * Удалить по массиву ID.
+ * PUT /api/v2/saved-searches/{id}?version={version}
+ * Обновить существующий сохранённый поиск.
+ */
+export async function updateSavedSearch(
+  id: string,
+  version: number,
+  request: EditSavedSearchRequest,
+  user: UserConfig,
+  config: AppConfig,
+): Promise<SavedSearchEditResult> {
+  return apiFetch<SavedSearchEditResult>(
+    `/api/v2/saved-searches/${id}?version=${version}`,
+    user, config,
+    { method: 'PUT', body: request },
+  )
+}
+
+/**
+ * DELETE /api/v2/saved-searches/{id}?version={version}
+ * Удалить сохранённый поиск.
  */
 export async function deleteSavedSearch(
-  ids: string[],
+  id: string,
+  version: number,
   user: UserConfig,
   config: AppConfig,
 ): Promise<void> {
-  await apiFetch<void>('/api/v2/hot/saved-searches', user, config, {
-    method: 'DELETE', body: ids,
+  await apiFetch<void>(`/api/v2/saved-searches/${id}?version=${version}`, user, config, {
+    method: 'DELETE',
   })
+}
+
+/**
+ * GET /api/v2/saved-searches/tags
+ * Все теги сохранённых поисков.
+ */
+export async function getSavedSearchTags(
+  user: UserConfig,
+  config: AppConfig,
+  signal?: AbortSignal,
+): Promise<SavedSearchesTagsGetResult> {
+  return apiFetch<SavedSearchesTagsGetResult>('/api/v2/saved-searches/tags', user, config, { signal })
 }
 
 // ─── Request builder helpers ──────────────────────────────────────────────────

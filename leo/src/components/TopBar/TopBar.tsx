@@ -4,7 +4,10 @@ import type { TimeRange } from '@/store/AppContext'
 import DateRangePicker from '@/components/DateRangePicker/DateRangePicker'
 import ProjectCodePicker from '@/components/ProjectCodePicker/ProjectCodePicker'
 import SavedSearchesPanel from './SavedSearchesPanel'
-import type { OpenSearchFilter, SavedSearchItemGetResult } from '@/types/api'
+import type {
+  OpenSearchFilter, SavedSearchItemGetResult,
+  NewSavedSearchRequest, EditSavedSearchRequest,
+} from '@/types/api'
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -115,10 +118,11 @@ interface Props {
   availableProjectCodes: string[]
   selectedProjectCodes: string[]
   highlightProjectCodes?: boolean
-  savedSearches: SavedSearchItemGetResult[]
   activeSearchName: string | null
   currentFilters: OpenSearchFilter[]
   currentPinnedFields: string[]
+  currentLuceneQuery: string
+  availableTags: string[]
   onPreset: (minutes: number) => void
   onLuceneChange: (q: string) => void
   onLuceneSearch: () => void
@@ -127,9 +131,12 @@ interface Props {
   onThemeToggle: () => void
   onLogout: () => void
   onProjectCodesChange: (codes: string[]) => void
-  onSaveSearch: (name: string, onlyMy: boolean) => Promise<void>
-  onLoadSearch: (filters: OpenSearchFilter[], pinnedFields: string[]) => void
-  onDeleteSearch: (id: string) => Promise<void>
+  onSaveSearch: (data: NewSavedSearchRequest) => Promise<void>
+  onUpdateSearch: (id: string, version: number, data: EditSavedSearchRequest) => Promise<void>
+  onApplySearch: (item: SavedSearchItemGetResult) => void
+  onDeleteSearch: (id: string, version: number) => Promise<void>
+  onFetchSearches: (params: { name?: string; tags?: string[]; needFilters: boolean }) => Promise<SavedSearchItemGetResult[]>
+  onLoadTags: () => Promise<string[]>
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -144,10 +151,11 @@ export default function TopBar({
   availableProjectCodes,
   selectedProjectCodes,
   highlightProjectCodes,
-  savedSearches,
   activeSearchName,
   currentFilters,
   currentPinnedFields,
+  currentLuceneQuery,
+  availableTags,
   onPreset,
   onCustomRange,
   onLuceneChange,
@@ -157,8 +165,11 @@ export default function TopBar({
   onLogout,
   onProjectCodesChange,
   onSaveSearch,
-  onLoadSearch,
+  onUpdateSearch,
+  onApplySearch,
   onDeleteSearch,
+  onFetchSearches,
+  onLoadTags,
 }: Props) {
   const [exportOpen, setExportOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -357,11 +368,14 @@ export default function TopBar({
           activeSearchName={activeSearchName}
           currentFilters={currentFilters}
           currentPinnedFields={currentPinnedFields}
-          savedSearches={savedSearches}
-          isLoading={isLoading}
-          onLoad={onLoadSearch}
+          currentLuceneQuery={currentLuceneQuery}
+          availableTags={availableTags}
           onSave={onSaveSearch}
+          onUpdate={onUpdateSearch}
           onDelete={onDeleteSearch}
+          onApply={onApplySearch}
+          onFetchSearches={onFetchSearches}
+          onLoadTags={onLoadTags}
         />
         {divider}
 

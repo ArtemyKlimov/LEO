@@ -4,10 +4,11 @@ import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
 import {
   fetchLogs, fetchHistogram, fetchTopValues, buildLogRequest,
-  getFilterFields, fetchSavedSearches, createSavedSearch, deleteSavedSearch,
+  getFilterFields, fetchSavedSearches, createSavedSearch, updateSavedSearch,
+  deleteSavedSearch, getSavedSearchTags,
 } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
-import { buildSavedSearchFilters } from '@/components/TopBar/SavedSearchesPanel'
+import { savedSearchToAppState } from '@/components/TopBar/SavedSearchesPanel'
 import TopBar, { PRESET_LABELS } from '@/components/TopBar/TopBar'
 import Histogram from '@/components/Histogram/Histogram'
 import Sidebar from '@/components/Sidebar/Sidebar'
@@ -17,6 +18,8 @@ import FilterBuilder from '@/components/FilterBuilder/FilterBuilder'
 import type {
   DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter,
   FieldValuesResponse, FieldValuesBucket, SavedSearchItemGetResult, LogQueryFilters,
+  NewSavedSearchRequest, EditSavedSearchRequest,
+  SavedSearchGetResult, SavedSearchesTagsGetResult,
 } from '@/types/api'
 
 export default function LogViewerPage() {
@@ -36,8 +39,8 @@ export default function LogViewerPage() {
   // Нужен выбор projectCode: кодов > 5 и ни один не выбран
   const needsProjectSelection = availableProjectCodes.length > 5 && selectedProjectCodes.length === 0
 
-  const [savedSearches, setSavedSearches] = useState<SavedSearchItemGetResult[]>([])
   const [activeSearchName, setActiveSearchName] = useState<string | null>(null)
+  const [savedSearchTags, setSavedSearchTags] = useState<string[]>([])
 
   const [activePresetMinutes, setActivePresetMinutes] = useState<number | null>(15)
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
@@ -164,45 +167,66 @@ export default function LogViewerPage() {
 
   // ─── Saved searches ──────────────────────────────────────────────────────────
 
-  const loadSavedSearches = useCallback(async () => {
-    if (!currentUser || !config) return
+  const handleFetchSearches = useCallback(async (
+    params: { needFilters: boolean; name?: string; tags?: string[] },
+  ): Promise<SavedSearchItemGetResult[]> => {
+    if (!currentUser || !config) return []
     try {
-      const result = await fetchSavedSearches(currentUser, config)
-      setSavedSearches(result.savedSearchItems ?? [])
-    } catch { /* silent — endpoint may be unavailable */ }
+      const rawResult = await fetchSavedSearches(currentUser, config, params) as unknown
+      // API may return plain array or {savedSearchItems: [...]}
+      if (Array.isArray(rawResult)) return rawResult as SavedSearchItemGetResult[]
+      return (rawResult as SavedSearchGetResult).savedSearchItems ?? []
+    } catch { return [] }
   }, [currentUser, config])
 
-  useEffect(() => {
+  async function handleSaveSearch(data: NewSavedSearchRequest) {
     if (!currentUser || !config) return
-    const ac = new AbortController()
-    fetchSavedSearches(currentUser, config, ac.signal)
-      .then(result => { if (!ac.signal.aborted) setSavedSearches(result.savedSearchItems ?? []) })
-      .catch(() => {})
-    return () => ac.abort()
-  }, [currentUser, config])
-
-  async function handleSaveSearch(name: string, onlyMy: boolean) {
-    if (!currentUser || !config) return
-    const apiFilters = buildSavedSearchFilters(filters, pinnedFields)
-    await createSavedSearch({ name, onlyMy, filters: apiFilters }, currentUser, config)
-    setActiveSearchName(name)
-    await loadSavedSearches()
+    await createSavedSearch(data, currentUser, config)
+    setActiveSearchName(data.name)
   }
 
-  function handleLoadSearch(loadedFilters: OpenSearchFilter[], loadedPinnedFields: string[]) {
+  async function handleUpdateSearch(id: string, version: number, data: EditSavedSearchRequest) {
+    if (!currentUser || !config) return
+    await updateSavedSearch(id, version, data, currentUser, config)
+    setActiveSearchName(data.name)
+  }
+
+  async function handleDeleteSearch(id: string, version: number) {
+    if (!currentUser || !config) return
+    await deleteSavedSearch(id, version, currentUser, config)
+  }
+
+  function handleApplySearch(item: SavedSearchItemGetResult) {
+    const { filters: loadedFilters, pinnedFields: loadedPinnedFields, timeRangePeriod } = savedSearchToAppState(item)
     clearFilters()
     loadedFilters.forEach(addFilter)
-    setPinnedFields(loadedPinnedFields)
+    if (loadedPinnedFields.length > 0) setPinnedFields(loadedPinnedFields)
+    setActiveSearchName(item.name)
+
+    if (timeRangePeriod) {
+      const minutesMap: Record<string, number> = {
+        '15m': 15, '30m': 30, '1h': 60, '3h': 180, '6h': 360, '12h': 720, '24h': 1440,
+      }
+      const minutes = minutesMap[timeRangePeriod]
+      if (minutes) {
+        handlePreset(minutes)
+        return
+      }
+    }
     if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, loadedFilters)
   }
 
-  async function handleDeleteSearch(id: string) {
-    if (!currentUser || !config) return
-    await deleteSavedSearch([id], currentUser, config)
-    if (savedSearches.find(s => s.id === id)?.name === activeSearchName) {
-      setActiveSearchName(null)
-    }
-    await loadSavedSearches()
+  async function handleLoadTags(): Promise<string[]> {
+    if (!currentUser || !config) return []
+    try {
+      const rawResult = await getSavedSearchTags(currentUser, config) as unknown
+      // API may return plain array or {tags: [...]}
+      const tagsArray = Array.isArray(rawResult)
+        ? rawResult as string[]
+        : ((rawResult as SavedSearchesTagsGetResult).tags ?? [])
+      setSavedSearchTags(tagsArray)
+      return tagsArray
+    } catch { return [] }
   }
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
@@ -463,10 +487,11 @@ export default function LogViewerPage() {
         availableProjectCodes={availableProjectCodes}
         selectedProjectCodes={selectedProjectCodes}
         highlightProjectCodes={needsProjectSelection}
-        savedSearches={savedSearches}
         activeSearchName={activeSearchName}
         currentFilters={filters}
         currentPinnedFields={pinnedFields}
+        currentLuceneQuery={luceneQuery}
+        availableTags={savedSearchTags}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
@@ -476,8 +501,11 @@ export default function LogViewerPage() {
         onLogout={handleLogout}
         onProjectCodesChange={handleProjectCodesChange}
         onSaveSearch={handleSaveSearch}
-        onLoadSearch={handleLoadSearch}
+        onUpdateSearch={handleUpdateSearch}
+        onApplySearch={handleApplySearch}
         onDeleteSearch={handleDeleteSearch}
+        onFetchSearches={handleFetchSearches}
+        onLoadTags={handleLoadTags}
       />
 
       {needsProjectSelection ? (
