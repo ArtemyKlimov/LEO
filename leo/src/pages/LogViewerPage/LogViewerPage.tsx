@@ -4,7 +4,7 @@ import { useApp } from '@/store/AppContext'
 import { clearToken } from '@/auth/jwtService'
 import {
   fetchLogs, fetchHistogram, fetchTopValues, buildLogRequest,
-  getFilterFields, fetchSavedSearches, createSavedSearch, updateSavedSearch,
+  getFilterFields, fetchSavedSearches, fetchSavedSearchById, createSavedSearch, updateSavedSearch,
   deleteSavedSearch, getSavedSearchTags,
 } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
@@ -196,12 +196,19 @@ export default function LogViewerPage() {
     await deleteSavedSearch(id, version, currentUser, config)
   }
 
-  function handleApplySearch(item: SavedSearchItemGetResult) {
-    const { filters: loadedFilters, pinnedFields: loadedPinnedFields, timeRangePeriod } = savedSearchToAppState(item)
+  async function handleApplySearch(item: SavedSearchItemGetResult) {
+    if (!currentUser || !config) return
+    let fullItem = item
+    try {
+      fullItem = await fetchSavedSearchById(item.id, item.version, currentUser, config)
+    } catch {
+      // продолжаем с данными из списка (filters могут отсутствовать)
+    }
+    const { filters: loadedFilters, pinnedFields: loadedPinnedFields, timeRangePeriod } = savedSearchToAppState(fullItem)
     clearFilters()
     loadedFilters.forEach(addFilter)
     if (loadedPinnedFields.length > 0) setPinnedFields(loadedPinnedFields)
-    setActiveSearchName(item.name)
+    setActiveSearchName(fullItem.name)
 
     if (timeRangePeriod) {
       const minutesMap: Record<string, number> = {

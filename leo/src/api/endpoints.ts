@@ -219,6 +219,19 @@ export async function fetchSavedSearches(
 }
 
 /**
+ * GET /api/v2/saved-searches/{id}
+ * Получить полные данные одного сохранённого поиска (включая filters).
+ */
+export async function fetchSavedSearchById(
+  id: string,
+  version: number,
+  user: UserConfig,
+  config: AppConfig,
+): Promise<SavedSearchItemGetResult> {
+  return apiFetch<SavedSearchItemGetResult>(`/api/v2/saved-searches/${id}?version=${version}`, user, config)
+}
+
+/**
  * POST /api/v2/saved-searches
  * Создать новый сохранённый поиск.
  */
