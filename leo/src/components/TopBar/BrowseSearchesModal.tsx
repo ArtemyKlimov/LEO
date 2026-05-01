@@ -97,24 +97,24 @@ export default function BrowseSearchesModal({
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastServerQuery = useRef('')
   const mountedRef = useRef(true)
+  const loadStartedRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
   }, [])
 
-  // Начальная загрузка
+  // Начальная загрузка — loadStartedRef предотвращает двойной вызов в React StrictMode
   useEffect(() => {
-    let cancelled = false
+    if (loadStartedRef.current) return
+    loadStartedRef.current = true
     setIsLoading(true)
     onFetchSearches({ needFilters: false })
       .then(items => {
-        if (cancelled) return
         baseItems.current = items
-        setIsLoading(false)
+        if (mountedRef.current) setIsLoading(false)
       })
-      .catch(() => { if (!cancelled) setIsLoading(false) })
-    return () => { cancelled = true }
+      .catch(() => { if (mountedRef.current) setIsLoading(false) })
   // onFetchSearches намеренно исключён из зависимостей — загружаем только при монтировании
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

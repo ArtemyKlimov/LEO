@@ -2,14 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import { getToken } from '@/auth/jwtService'
-import { fetchLogs, buildLogRequest, fetchProjectCodes } from '@/api/endpoints'
+import { fetchProjectCodes } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
 import type { UserConfig } from '@/types/config'
 
-const LAST_15_MIN_MS = 15 * 60 * 1000
-
 export default function LoginPage() {
-  const { config, theme, setCurrentUser, setTimeRange, setLogData, setLoading, setAvailableProjectCodes, setSelectedProjectCodes } = useApp()
+  const { config, theme, setCurrentUser, setLoading, setAvailableProjectCodes, setSelectedProjectCodes } = useApp()
   const navigate = useNavigate()
 
   const [selected, setSelected] = useState<UserConfig | null>(null)
@@ -29,29 +27,11 @@ export default function LoginPage() {
       // ensure token is ready
       await getToken(selected, config)
 
-      // load available project codes (silently ignore errors)
       const codes = await fetchProjectCodes(selected, config).catch(() => [])
       setAvailableProjectCodes(codes)
       setCurrentUser(selected)
-
-      const to = new Date()
-      const from = new Date(to.getTime() - LAST_15_MIN_MS)
-      setTimeRange({ from, to, label: 'Последние 15 минут' })
-
-      if (codes.length > 5) {
-        // слишком много кодов — ждём выбора пользователя
-        setSelectedProjectCodes([])
-        navigate('/viewer')
-      } else {
-        setSelectedProjectCodes(codes)
-        const projectCodeFilter = codes.length > 0
-          ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: codes }]
-          : []
-        const request = buildLogRequest(from, to, { fieldFilters: projectCodeFilter }, config.logging.maxLogsPerPage)
-        const response = await fetchLogs(request, selected, config)
-        setLogData(response)
-        navigate('/viewer')
-      }
+      setSelectedProjectCodes(codes.length > 5 ? [] : codes)
+      navigate('/viewer')
     } catch (err) {
       if (err instanceof ApiError) {
         setLoginError(`Ошибка API ${err.status}: ${err.message}`)

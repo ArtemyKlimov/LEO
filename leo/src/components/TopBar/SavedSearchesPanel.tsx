@@ -106,12 +106,13 @@ export default function SavedSearchesPanel({
   const [browseModalOpen, setBrowseModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<SavedSearchItemGetResult | undefined>(undefined)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const tagsLoadStarted = useRef(false)
 
   // Загружаем теги фоново при монтировании — чтобы к моменту открытия модала они уже были готовы
   useEffect(() => {
-    if (availableTags.length === 0) {
-      onLoadTags()
-    }
+    if (tagsLoadStarted.current || availableTags.length > 0) return
+    tagsLoadStarted.current = true
+    onLoadTags()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
