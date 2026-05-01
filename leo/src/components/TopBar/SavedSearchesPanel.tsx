@@ -72,6 +72,7 @@ function IconFolder({ cls }: { cls: string }) {
 
 interface Props {
   dark: boolean
+  currentUserSub: string
   activeSearchName: string | null
   currentFilters: OpenSearchFilter[]
   currentPinnedFields: string[]
@@ -89,6 +90,7 @@ interface Props {
 
 export default function SavedSearchesPanel({
   dark,
+  currentUserSub,
   activeSearchName,
   currentFilters,
   currentPinnedFields,
@@ -212,6 +214,7 @@ export default function SavedSearchesPanel({
       {browseModalOpen && (
         <BrowseSearchesModal
           dark={dark}
+          currentUserSub={currentUserSub}
           onApply={onApply}
           onDelete={onDelete}
           onEdit={handleEdit}

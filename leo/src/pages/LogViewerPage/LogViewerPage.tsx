@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
-import { clearToken } from '@/auth/jwtService'
+import { clearToken, resolveUserSub } from '@/auth/jwtService'
 import {
   fetchLogs, fetchHistogram, fetchTopValues, buildLogRequest,
   getFilterFields, fetchSavedSearches, fetchSavedSearchById, createSavedSearch, updateSavedSearch,
@@ -38,6 +38,8 @@ export default function LogViewerPage() {
 
   // Нужен выбор projectCode: кодов > 5 и ни один не выбран
   const needsProjectSelection = availableProjectCodes.length > 5 && selectedProjectCodes.length === 0
+
+  const currentUserSub = config ? resolveUserSub(currentUser, config) : currentUser.userId
 
   const [activeSearchName, setActiveSearchName] = useState<string | null>(null)
   const [savedSearchTags, setSavedSearchTags] = useState<string[]>([])
@@ -487,6 +489,7 @@ export default function LogViewerPage() {
       <TopBar
         dark={dark}
         user={currentUser}
+        currentUserSub={currentUserSub}
         timeRange={timeRange}
         luceneQuery={luceneQuery}
         isLoading={isLoading}

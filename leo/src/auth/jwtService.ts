@@ -146,3 +146,22 @@ export async function refreshToken(user: UserConfig, config: AppConfig): Promise
 export function clearToken(userId: string): void {
   removeToken(userId)
 }
+
+/**
+ * Returns the JWT sub claim for the given user.
+ * For preset JWTs (user.jwt) — decodes the token.
+ * For config-generated JWTs — resolves the sub field template.
+ */
+export function resolveUserSub(user: UserConfig, config: AppConfig): string {
+  if (user.jwt) {
+    try {
+      const payload = decodeJwt(user.jwt)
+      if (typeof payload.sub === 'string') return payload.sub
+    } catch {
+      // fall through
+    }
+  }
+  const subField = config.auth.jwt.fields.find(f => f.name === 'sub')
+  if (subField) return resolveFieldValue(subField.value, user)
+  return user.userId
+}

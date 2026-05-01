@@ -111,6 +111,7 @@ function IconCalendar({ cls }: { cls: string }) {
 interface Props {
   dark: boolean
   user: UserConfig
+  currentUserSub: string
   timeRange: TimeRange | null
   luceneQuery: string
   isLoading: boolean
@@ -144,6 +145,7 @@ interface Props {
 export default function TopBar({
   dark,
   user,
+  currentUserSub,
   timeRange,
   luceneQuery,
   isLoading,
@@ -365,6 +367,7 @@ export default function TopBar({
         {/* Saved Searches Panel */}
         <SavedSearchesPanel
           dark={dark}
+          currentUserSub={currentUserSub}
           activeSearchName={activeSearchName}
           currentFilters={currentFilters}
           currentPinnedFields={currentPinnedFields}
