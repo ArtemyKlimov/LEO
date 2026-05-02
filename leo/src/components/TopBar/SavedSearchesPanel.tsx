@@ -107,16 +107,8 @@ export default function SavedSearchesPanel({
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [browseModalOpen, setBrowseModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<SavedSearchItemGetResult | undefined>(undefined)
+  const [loadedTags, setLoadedTags] = useState<string[]>([])
   const popoverRef = useRef<HTMLDivElement>(null)
-  const tagsLoadStarted = useRef(false)
-
-  // Загружаем теги фоново при монтировании — чтобы к моменту открытия модала они уже были готовы
-  useEffect(() => {
-    if (tagsLoadStarted.current || availableTags.length > 0) return
-    tagsLoadStarted.current = true
-    onLoadTags()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     if (!popoverOpen) return
@@ -138,12 +130,16 @@ export default function SavedSearchesPanel({
     setPopoverOpen(false)
     setEditItem(undefined)
     setSaveModalOpen(true)
+    onLoadTags().then(tags => { if (tags.length > 0) setLoadedTags(tags) })
   }
 
   function handleEdit(item: SavedSearchItemGetResult) {
     setBrowseModalOpen(false)
     setEditItem(item)
     setSaveModalOpen(true)
+    if (loadedTags.length === 0) {
+      onLoadTags().then(tags => { if (tags.length > 0) setLoadedTags(tags) })
+    }
   }
 
   // ── Styles ───────────────────────────────────────────────────────────────────
@@ -204,7 +200,7 @@ export default function SavedSearchesPanel({
           currentFilters={currentFilters}
           currentPinnedFields={currentPinnedFields}
           currentLuceneQuery={currentLuceneQuery}
-          availableTags={availableTags}
+          availableTags={loadedTags}
           onSave={onSave}
           onUpdate={onUpdate}
           onClose={() => { setSaveModalOpen(false); setEditItem(undefined) }}

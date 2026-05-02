@@ -230,9 +230,10 @@ export default function LogViewerPage() {
     try {
       const rawResult = await getSavedSearchTags(currentUser, config) as unknown
       // API may return plain array or {tags: [...]}
-      const tagsArray = Array.isArray(rawResult)
+      const raw = Array.isArray(rawResult)
         ? rawResult as string[]
         : ((rawResult as SavedSearchesTagsGetResult).tags ?? [])
+      const tagsArray = [...new Set(raw)]
       setSavedSearchTags(tagsArray)
       return tagsArray
     } catch { return [] }

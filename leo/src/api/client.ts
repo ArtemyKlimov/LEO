@@ -99,7 +99,12 @@ export async function apiFetch<T>(
 
   // snowLogId exceeds Number.MAX_SAFE_INTEGER and gets silently rounded by JSON.parse.
   // Pre-process the raw text to convert it to a string before parsing.
+  // Some backend responses are malformed JSON: missing commas between array elements
+  // (e.g. `"foo"\n"bar"`) or trailing commas before `]`/`}`.
   const text = await response.text()
-  const safe = text.replace(/"snowLogId"\s*:\s*(\d+)/g, '"snowLogId": "$1"')
+  const safe = text
+    .replace(/"snowLogId"\s*:\s*(\d+)/g, '"snowLogId": "$1"')
+    .replace(/"[ \t]*\r?\n[ \t]*"/g, '",\n"')
+    .replace(/,(\s*[}\]])/g, '$1')
   return JSON.parse(safe) as T
 }
