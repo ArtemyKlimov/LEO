@@ -90,7 +90,7 @@ export interface LogQueryRequest {
 
 export interface SortAttributes {
   order: 'asc' | 'desc'
-  fieldName: string
+  fieldName?: string
 }
 
 export interface LogQueryFilters {
@@ -270,4 +270,19 @@ export interface FieldValuesResponse {
   fieldName: string
   totalDocCount: number
   buckets: FieldValuesBucket[]
+}
+
+// ─── Export ──────────────────────────────────────────────────────────────────
+
+export interface ExportAttributes {
+  fileType: 'csv' | 'txt'
+  sorting: SortAttributes
+  limitLines: number
+  limitMB: number
+  exportFields: string[]
+}
+
+export interface LogQueryLogExportRequest {
+  exportAttributes: ExportAttributes
+  filters: LogQueryFilters
 }

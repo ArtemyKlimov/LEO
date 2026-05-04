@@ -1,8 +1,9 @@
-import { apiFetch } from './client'
+import { apiFetch, apiFetchBlob } from './client'
 import type { AppConfig, UserConfig } from '@/types/config'
 import type {
   LogQueryPageableRequest,
   LogQueryFilters,
+  LogQueryLogExportRequest,
   ClickHouseResponse,
   ClickHouseAggregationResponse,
   DateHistogramInterval,
@@ -14,6 +15,7 @@ import type {
   NewSavedSearchRequest,
   EditSavedSearchRequest,
   SavedSearchGetResult,
+  SavedSearchItemGetResult,
   SavedSearchCreateResult,
   SavedSearchEditResult,
   SavedSearchesTagsGetResult,
@@ -33,6 +35,21 @@ export async function fetchLogs(
   config: AppConfig,
 ): Promise<ClickHouseResponse> {
   return apiFetch<ClickHouseResponse>('/api/v2/query', user, config, {
+    method: 'POST',
+    body: request,
+  })
+}
+
+/**
+ * POST /api/v2/export-logs
+ * Серверный экспорт логов — возвращает zip-архив с csv/txt файлом.
+ */
+export async function exportLogs(
+  request: LogQueryLogExportRequest,
+  user: UserConfig,
+  config: AppConfig,
+): Promise<Blob> {
+  return apiFetchBlob('/api/v2/export-logs', user, config, {
     method: 'POST',
     body: request,
   })

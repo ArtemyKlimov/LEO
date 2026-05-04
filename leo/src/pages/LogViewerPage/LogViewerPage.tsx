@@ -5,7 +5,7 @@ import { clearToken, resolveUserSub } from '@/auth/jwtService'
 import {
   fetchLogs, fetchHistogram, fetchTopValues, buildLogRequest,
   getFilterFields, fetchSavedSearches, fetchSavedSearchById, createSavedSearch, updateSavedSearch,
-  deleteSavedSearch, getSavedSearchTags,
+  deleteSavedSearch, getSavedSearchTags, exportLogs,
 } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
 import { savedSearchToAppState } from '@/components/TopBar/SavedSearchesPanel'
@@ -20,6 +20,7 @@ import type {
   FieldValuesResponse, FieldValuesBucket, SavedSearchItemGetResult, LogQueryFilters,
   NewSavedSearchRequest, EditSavedSearchRequest,
   SavedSearchGetResult, SavedSearchesTagsGetResult,
+  ExportAttributes, LogQueryLogExportRequest,
 } from '@/types/api'
 
 export default function LogViewerPage() {
@@ -99,6 +100,11 @@ export default function LogViewerPage() {
     }
     return merged
   }, [apiFields, fieldFrequency])
+
+  const availableFieldNames = useMemo(
+    () => uiFields.map(f => f.name).filter((n): n is string => Boolean(n)),
+    [uiFields],
+  )
 
   // ─── Auto-fetch on mount ─────────────────────────────────────────────────────
 
@@ -300,33 +306,21 @@ export default function LogViewerPage() {
     }
   }
 
-  function handleExport(format: 'txt' | 'csv') {
-    if (!logs.length) return
-    let content: string
-    let filename: string
-    let mime: string
-
-    if (format === 'txt') {
-      content = logs
-        .map(log => `[${log.localTime ?? ''}] [${log.level}] [${log.appName ?? ''}] ${log.text ?? ''}`)
-        .join('\n')
-      filename = `leo-logs-${Date.now()}.txt`
-      mime = 'text/plain'
-    } else {
-      const keys = Array.from(new Set(logs.flatMap(l => Object.keys(l))))
-      const esc = (v: unknown) => {
-        const s = v == null ? '' : String(v)
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
-      }
-      content = [keys.join(','), ...logs.map(l => keys.map(k => esc(l[k])).join(','))].join('\n')
-      filename = `leo-logs-${Date.now()}.csv`
-      mime = 'text/csv'
+  async function handleExport(attrs: ExportAttributes) {
+    if (!currentUser || !config || !timeRange) return
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const request: LogQueryLogExportRequest = {
+      exportAttributes: attrs,
+      filters: buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, [...filters, ...projectCodeFilter]),
     }
-
-    const url = URL.createObjectURL(new Blob([content], { type: mime }))
+    const blob = await exportLogs(request, currentUser, config)
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = filename
+    a.download = `leo-logs-${Date.now()}.zip`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -507,6 +501,7 @@ export default function LogViewerPage() {
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
         onLuceneSearch={handleLuceneSearch}
+        availableFields={availableFieldNames}
         onExport={handleExport}
         onThemeToggle={() => setTheme(dark ? 'light' : 'dark')}
         onLogout={handleLogout}
