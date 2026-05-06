@@ -26,7 +26,6 @@ interface Props {
 export default function ExportModal({ dark, availableFields, onExport, onClose }: Props) {
   const [fileType, setFileType] = useState<'csv' | 'txt'>('csv')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
-  const [sortField, setSortField] = useState<string>('localTime')
   const [limitLines, setLimitLines] = useState<number>(10000)
   const [limitMB, setLimitMB] = useState<number>(10)
   const [selectedFields, setSelectedFields] = useState<string[]>([])
@@ -74,7 +73,7 @@ export default function ExportModal({ dark, availableFields, onExport, onClose }
     try {
       await onExport({
         fileType,
-        sorting: { order: sortOrder, fieldName: sortField || undefined },
+        sorting: { order: sortOrder, fieldName: 'localTime' },
         limitLines,
         limitMB,
         exportFields: selectedFields,
@@ -207,12 +206,9 @@ export default function ExportModal({ dark, availableFields, onExport, onClose }
             </div>
             <div>
               <label className={labelCls}>Поле сортировки</label>
-              <select value={sortField} onChange={e => setSortField(e.target.value)} className={selectCls}>
-                <option value="localTime">localTime (по умолчанию)</option>
-                {availableFields.filter(f => f !== 'localTime').map(f => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
+              <div className={[selectCls, 'flex items-center opacity-60 cursor-default'].join(' ')}>
+                localTime
+              </div>
             </div>
           </div>
 
