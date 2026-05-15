@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
-import { clearToken } from '@/auth/jwtService'
+import { clearToken, resolveUserSub } from '@/auth/jwtService'
 import {
   fetchLogs, fetchHistogram, fetchTopValues, buildLogRequest,
-  getFilterFields, fetchSavedSearches, createSavedSearch, deleteSavedSearch,
+  getFilterFields, fetchSavedSearches, fetchSavedSearchById, createSavedSearch, updateSavedSearch,
+  deleteSavedSearch, getSavedSearchTags, exportLogs,
 } from '@/api/endpoints'
 import { ApiError } from '@/api/client'
-import { buildSavedSearchFilters } from '@/components/TopBar/SavedSearchesPanel'
+import { savedSearchToAppState } from '@/components/TopBar/SavedSearchesPanel'
 import TopBar, { PRESET_LABELS } from '@/components/TopBar/TopBar'
 import Histogram from '@/components/Histogram/Histogram'
 import Sidebar from '@/components/Sidebar/Sidebar'
@@ -17,6 +18,9 @@ import FilterBuilder from '@/components/FilterBuilder/FilterBuilder'
 import type {
   DateHistogramInterval, HistogramBucket, Field, OpenSearchFilter,
   FieldValuesResponse, FieldValuesBucket, SavedSearchItemGetResult, LogQueryFilters,
+  NewSavedSearchRequest, EditSavedSearchRequest,
+  SavedSearchGetResult, SavedSearchesTagsGetResult,
+  ExportAttributes, LogQueryLogExportRequest,
 } from '@/types/api'
 
 export default function LogViewerPage() {
@@ -36,8 +40,10 @@ export default function LogViewerPage() {
   // Нужен выбор projectCode: кодов > 5 и ни один не выбран
   const needsProjectSelection = availableProjectCodes.length > 5 && selectedProjectCodes.length === 0
 
-  const [savedSearches, setSavedSearches] = useState<SavedSearchItemGetResult[]>([])
+  const currentUserSub = config ? resolveUserSub(currentUser, config) : currentUser.userId
+
   const [activeSearchName, setActiveSearchName] = useState<string | null>(null)
+  const [savedSearchTags, setSavedSearchTags] = useState<string[]>([])
 
   const [activePresetMinutes, setActivePresetMinutes] = useState<number | null>(15)
   const [histogramInterval, setHistogramInterval] = useState<DateHistogramInterval>('auto')
@@ -94,6 +100,11 @@ export default function LogViewerPage() {
     }
     return merged
   }, [apiFields, fieldFrequency])
+
+  const availableFieldNames = useMemo(
+    () => uiFields.map(f => f.name).filter((n): n is string => Boolean(n)),
+    [uiFields],
+  )
 
   // ─── Auto-fetch on mount ─────────────────────────────────────────────────────
 
@@ -164,45 +175,74 @@ export default function LogViewerPage() {
 
   // ─── Saved searches ──────────────────────────────────────────────────────────
 
-  const loadSavedSearches = useCallback(async () => {
-    if (!currentUser || !config) return
+  const handleFetchSearches = useCallback(async (
+    params: { needFilters: boolean; name?: string; tags?: string[] },
+  ): Promise<SavedSearchItemGetResult[]> => {
+    if (!currentUser || !config) return []
     try {
-      const result = await fetchSavedSearches(currentUser, config)
-      setSavedSearches(result.savedSearchItems ?? [])
-    } catch { /* silent — endpoint may be unavailable */ }
+      const rawResult = await fetchSavedSearches(currentUser, config, params) as unknown
+      // API may return plain array or {savedSearchItems: [...]}
+      if (Array.isArray(rawResult)) return rawResult as SavedSearchItemGetResult[]
+      return (rawResult as SavedSearchGetResult).savedSearchItems ?? []
+    } catch { return [] }
   }, [currentUser, config])
 
-  useEffect(() => {
+  async function handleSaveSearch(data: NewSavedSearchRequest) {
     if (!currentUser || !config) return
-    const ac = new AbortController()
-    fetchSavedSearches(currentUser, config, ac.signal)
-      .then(result => { if (!ac.signal.aborted) setSavedSearches(result.savedSearchItems ?? []) })
-      .catch(() => {})
-    return () => ac.abort()
-  }, [currentUser, config])
-
-  async function handleSaveSearch(name: string, onlyMy: boolean) {
-    if (!currentUser || !config) return
-    const apiFilters = buildSavedSearchFilters(filters, pinnedFields)
-    await createSavedSearch({ name, onlyMy, filters: apiFilters }, currentUser, config)
-    setActiveSearchName(name)
-    await loadSavedSearches()
+    await createSavedSearch(data, currentUser, config)
+    setActiveSearchName(data.name)
   }
 
-  function handleLoadSearch(loadedFilters: OpenSearchFilter[], loadedPinnedFields: string[]) {
+  async function handleUpdateSearch(id: string, version: number, data: EditSavedSearchRequest) {
+    if (!currentUser || !config) return
+    await updateSavedSearch(id, version, data, currentUser, config)
+    setActiveSearchName(data.name)
+  }
+
+  async function handleDeleteSearch(id: string, version: number) {
+    if (!currentUser || !config) return
+    await deleteSavedSearch(id, version, currentUser, config)
+  }
+
+  async function handleApplySearch(item: SavedSearchItemGetResult) {
+    if (!currentUser || !config) return
+    let fullItem = item
+    try {
+      fullItem = await fetchSavedSearchById(item.id, item.version, currentUser, config)
+    } catch {
+      // продолжаем с данными из списка (filters могут отсутствовать)
+    }
+    const { filters: loadedFilters, pinnedFields: loadedPinnedFields, timeRangePeriod } = savedSearchToAppState(fullItem)
     clearFilters()
     loadedFilters.forEach(addFilter)
-    setPinnedFields(loadedPinnedFields)
+    if (loadedPinnedFields.length > 0) setPinnedFields(loadedPinnedFields)
+    setActiveSearchName(fullItem.name)
+
+    if (timeRangePeriod) {
+      const minutesMap: Record<string, number> = {
+        '15m': 15, '30m': 30, '1h': 60, '3h': 180, '6h': 360, '12h': 720, '24h': 1440,
+      }
+      const minutes = minutesMap[timeRangePeriod]
+      if (minutes) {
+        handlePreset(minutes)
+        return
+      }
+    }
     if (timeRange) doFetch(timeRange.from, timeRange.to, luceneQuery, histogramInterval, loadedFilters)
   }
 
-  async function handleDeleteSearch(id: string) {
-    if (!currentUser || !config) return
-    await deleteSavedSearch([id], currentUser, config)
-    if (savedSearches.find(s => s.id === id)?.name === activeSearchName) {
-      setActiveSearchName(null)
-    }
-    await loadSavedSearches()
+  async function handleLoadTags(): Promise<string[]> {
+    if (!currentUser || !config) return []
+    try {
+      const rawResult = await getSavedSearchTags(currentUser, config) as unknown
+      // API may return plain array or {tags: [...]}
+      const raw = Array.isArray(rawResult)
+        ? rawResult as string[]
+        : ((rawResult as SavedSearchesTagsGetResult).tags ?? [])
+      const tagsArray = [...new Set(raw)]
+      setSavedSearchTags(tagsArray)
+      return tagsArray
+    } catch { return [] }
   }
 
   // ─── Load more (cursor pagination) ──────────────────────────────────────────
@@ -266,33 +306,29 @@ export default function LogViewerPage() {
     }
   }
 
-  function handleExport(format: 'txt' | 'csv') {
-    if (!logs.length) return
-    let content: string
-    let filename: string
-    let mime: string
-
-    if (format === 'txt') {
-      content = logs
-        .map(log => `[${log.localTime ?? ''}] [${log.level}] [${log.appName ?? ''}] ${log.text ?? ''}`)
-        .join('\n')
-      filename = `leo-logs-${Date.now()}.txt`
-      mime = 'text/plain'
-    } else {
-      const keys = Array.from(new Set(logs.flatMap(l => Object.keys(l))))
-      const esc = (v: unknown) => {
-        const s = v == null ? '' : String(v)
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
-      }
-      content = [keys.join(','), ...logs.map(l => keys.map(k => esc(l[k])).join(','))].join('\n')
-      filename = `leo-logs-${Date.now()}.csv`
-      mime = 'text/csv'
+  async function handleExport(attrs: ExportAttributes) {
+    if (!currentUser || !config || !timeRange) return
+    const projectCodeFilter: OpenSearchFilter[] =
+      selectedProjectCodes.length > 0
+        ? [{ attributeName: 'projectCode', filterOperator: 'IS ONE OF' as const, attributeValue: selectedProjectCodes }]
+        : []
+    const request: LogQueryLogExportRequest = {
+      exportAttributes: attrs,
+      filters: buildQueryFilters(timeRange.from, timeRange.to, luceneQuery, [...filters, ...projectCodeFilter]),
     }
-
-    const url = URL.createObjectURL(new Blob([content], { type: mime }))
+    const blob = await exportLogs(request, currentUser, config)
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = filename
+    const now = new Date()
+    const ts = now.getFullYear().toString()
+      + (now.getMonth() + 1).toString().padStart(2, '0')
+      + now.getDate().toString().padStart(2, '0')
+      + '_'
+      + now.getHours().toString().padStart(2, '0')
+      + now.getMinutes().toString().padStart(2, '0')
+      + now.getSeconds().toString().padStart(2, '0')
+    a.download = `logs_${ts}.zip`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -456,6 +492,7 @@ export default function LogViewerPage() {
       <TopBar
         dark={dark}
         user={currentUser}
+        currentUserSub={currentUserSub}
         timeRange={timeRange}
         luceneQuery={luceneQuery}
         isLoading={isLoading}
@@ -463,21 +500,26 @@ export default function LogViewerPage() {
         availableProjectCodes={availableProjectCodes}
         selectedProjectCodes={selectedProjectCodes}
         highlightProjectCodes={needsProjectSelection}
-        savedSearches={savedSearches}
         activeSearchName={activeSearchName}
         currentFilters={filters}
         currentPinnedFields={pinnedFields}
+        currentLuceneQuery={luceneQuery}
+        availableTags={savedSearchTags}
         onPreset={handlePreset}
         onCustomRange={handleCustomRange}
         onLuceneChange={setLuceneQuery}
         onLuceneSearch={handleLuceneSearch}
+        availableFields={availableFieldNames}
         onExport={handleExport}
         onThemeToggle={() => setTheme(dark ? 'light' : 'dark')}
         onLogout={handleLogout}
         onProjectCodesChange={handleProjectCodesChange}
         onSaveSearch={handleSaveSearch}
-        onLoadSearch={handleLoadSearch}
+        onUpdateSearch={handleUpdateSearch}
+        onApplySearch={handleApplySearch}
         onDeleteSearch={handleDeleteSearch}
+        onFetchSearches={handleFetchSearches}
+        onLoadTags={handleLoadTags}
       />
 
       {needsProjectSelection ? (

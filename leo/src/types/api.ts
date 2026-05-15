@@ -90,7 +90,7 @@ export interface LogQueryRequest {
 
 export interface SortAttributes {
   order: 'asc' | 'desc'
-  fieldName: string
+  fieldName?: string
 }
 
 export interface LogQueryFilters {
@@ -190,44 +190,73 @@ export interface FormData {
 
 // ─── Saved Searches ───────────────────────────────────────────────────────────
 
-export interface SavedSearchFilter {
+export interface ClickHouseFilter {
+  filterOperator: FilterOperator
   attributeName: string
   attributeValue: string[]
-  filterOperator?: FilterOperator
-  attributeVisibility?: boolean
 }
 
-export interface NewSavedSearchRequest {
-  name: string
-  onlyMy?: boolean
-  queryAttributes?: { startTime?: string; endTime?: string }
-  filters: SavedSearchFilter[]
+export interface SavedSearchFiltersV2 {
+  luceneQuery?: string
+  mainTimeFilter?: { startTime?: string; endTime?: string }
+  fieldFilters?: ClickHouseFilter[]
+}
+
+export interface SavedSearchLayout {
+  visibilityFields?: string[]
+  timeRangePeriod?: string
 }
 
 export interface SavedSearchItemGetResult {
   id: string
-  name: string
   version: number
-  seqNo: number
-  primaryTerm: number
   author?: string
-  onlyMy: boolean
+  name: string
+  description?: string
+  tags: string[]
+  isPublic: boolean
+  needProjectCode: boolean
   apply: boolean
   share: boolean
   delete: boolean
-  storageType: string
-  filters: SavedSearchFilter[]
+  filters?: SavedSearchFiltersV2
+  layout?: SavedSearchLayout
 }
 
 export interface SavedSearchGetResult {
   savedSearchItems: SavedSearchItemGetResult[]
 }
 
+export interface NewSavedSearchRequest {
+  name: string
+  description?: string
+  tags?: string[]
+  isPublic: boolean
+  needProjectCode: boolean
+  filters?: SavedSearchFiltersV2
+  layout?: SavedSearchLayout
+}
+
+export interface EditSavedSearchRequest {
+  name: string
+  description?: string
+  tags?: string[]
+  needProjectCode: boolean
+  filters?: SavedSearchFiltersV2
+  layout?: SavedSearchLayout
+}
+
 export interface SavedSearchCreateResult {
   id: string
   version: number
-  seqNo: number
-  primaryTerm: number
+}
+
+export interface SavedSearchEditResult {
+  version: number
+}
+
+export interface SavedSearchesTagsGetResult {
+  tags: string[]
 }
 
 // ─── Field top values (used internally by Sidebar / FilterBuilder) ────────────
@@ -241,4 +270,19 @@ export interface FieldValuesResponse {
   fieldName: string
   totalDocCount: number
   buckets: FieldValuesBucket[]
+}
+
+// ─── Export ──────────────────────────────────────────────────────────────────
+
+export interface ExportAttributes {
+  fileType: 'csv' | 'txt'
+  sorting: SortAttributes
+  limitLines: number
+  limitMB: number
+  exportFields: string[]
+}
+
+export interface LogQueryLogExportRequest {
+  exportAttributes: ExportAttributes
+  filters: LogQueryFilters
 }
